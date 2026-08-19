@@ -16,7 +16,7 @@ export default function AccountsPage() {
         actions={
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Thêm tài khoản</span>
@@ -32,37 +32,37 @@ export default function AccountsPage() {
         />
 
         {/* Detailed Account Stats Card */}
-        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/90 p-5 backdrop-blur flex flex-col justify-between">
+        <div className="rounded-2xl border border-border bg-surface/90 p-5 backdrop-blur flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-semibold text-slate-100">
+            <h3 className="text-base font-semibold text-foreground">
               Cơ cấu tài sản
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Phân bổ số dư theo loại tài khoản
             </p>
 
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-300">Tài khoản Ngân hàng (2)</span>
-                <span className="font-semibold text-slate-100">
+                <span className="font-semibold text-foreground">
                   {formatVND(50450000)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-300">Tiền mặt</span>
-                <span className="font-semibold text-slate-100">
+                <span className="font-semibold text-foreground">
                   {formatVND(15200000)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-300">Ví điện tử MoMo</span>
-                <span className="font-semibold text-slate-100">
+                <span className="font-semibold text-foreground">
                   {formatVND(12000000)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-300">Tiết kiệm có kỳ hạn</span>
-                <span className="font-semibold text-slate-100">
+                <span className="font-semibold text-foreground">
                   {formatVND(12000000)}
                 </span>
               </div>

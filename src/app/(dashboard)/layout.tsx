@@ -39,7 +39,7 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop Sidebar */}
       <AppSidebar onQuickExpense={() => setIsQuickExpenseOpen(true)} />
 
@@ -98,15 +98,15 @@ export default function DashboardLayout({
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative w-full rounded-t-3xl border-t border-slate-800 bg-slate-900 p-5 shadow-2xl animate-in slide-in-from-bottom duration-300">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h2 className="text-base font-bold text-slate-100">
+          <div className="relative w-full rounded-t-3xl border-t border-border bg-surface p-5 shadow-2xl animate-in slide-in-from-bottom duration-300 z-10">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h2 className="text-base font-bold text-foreground">
                 Menu chức năng
               </h2>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-muted hover:text-foreground cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -120,19 +120,19 @@ export default function DashboardLayout({
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200 hover:bg-slate-800 transition-colors"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-200 hover:bg-surface-card transition-colors"
                   >
-                    <Icon className="h-4 w-4 text-slate-400" />
+                    <Icon className="h-4 w-4 text-muted" />
                     <span>{item.label}</span>
                   </Link>
                 );
               })}
 
-              <div className="pt-3 mt-3 border-t border-slate-800">
+              <div className="pt-3 mt-3 border-t border-border">
                 <Link
                   href="/login"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-expense hover:bg-expense/10 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>Đăng xuất</span>

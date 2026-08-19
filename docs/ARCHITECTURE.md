@@ -8,7 +8,7 @@ Nancy Finance là ứng dụng quản lý tài chính cá nhân toàn diện (Pe
 +-----------------------------------------------------------------------+
 |                         CLIENT LAYER (Browser / Mobile)               |
 |  Next.js 16 App Router (React 19 Server & Client Components)          |
-|  Tailwind CSS 4 | shadcn/ui (Base UI) | Recharts | Lucide Icons       |
+|  Tailwind CSS 4 | shadcn/ui Base UI (@base-ui/react) | Recharts v3    |
 +-----------------------------------------------------------------------+
                                     |
                                     v HTTPS / Server Actions / Route Handlers
@@ -22,7 +22,7 @@ Nancy Finance là ứng dụng quản lý tài chính cá nhân toàn diện (Pe
                                     v Serverless WebSocket / HTTP Pool
 +-----------------------------------------------------------------------+
 |                         DATABASE LAYER (Neon PostgreSQL)              |
-|  - Drizzle ORM Type-safe schema                                       |
+|  - Drizzle ORM Type-safe schema (18 tables)                           |
 |  - Serverless PostgreSQL with auto-scaling & pooling                  |
 |  - BigInt monetary units (VND), strict foreign keys & indexing        |
 +-----------------------------------------------------------------------+
@@ -34,16 +34,16 @@ Nancy Finance là ứng dụng quản lý tài chính cá nhân toàn diện (Pe
 
 1. **Authentication Flow**:
    - `Better Auth` xử lý session server-side qua cookie HttpOnly.
-   - Drizzle Adapter lưu trữ trực tiếp bảng `users`, `sessions`, `accounts_auth`, `verifications` trong cùng Neon database.
-   - Middleware/Server Component kiểm tra session bảo vệ các route `/dashboard`, `/transactions`, `/accounts`, v.v.
+   - Drizzle Adapter lưu trữ trực tiếp bảng `user`, `session`, `account`, `verification` trong cùng Neon database.
+   - Middleware/Server Component kiểm tra session bảo vệ các route `/`, `/transactions`, `/accounts`, v.v.
 
 2. **Financial Operations Flow**:
    - Client gửi yêu cầu (Server Action hoặc API Handler) -> Validation (Zod Schema) -> Domain Service -> Drizzle Repository -> Neon DB.
    - Các phép tính cộng trừ số dư, cập nhật hạn mức, tính lãi suất nợ đều được bọc trong Transaction DB (`db.transaction(...)`).
 
 3. **Rendering Strategy**:
-   - **Server Components**: Mặc định cho Layout, Data Fetching ban đầu, SEO và tối ưu Performance.
-   - **Client Components**: Chỉ sử dụng cho interactive UI (Modal ghi chi tiêu, Chart tương tác, Tab switcher, Form state).
+   - **Server Components (RSC)**: Mặc định cho Dashboard page (`src/app/(dashboard)/page.tsx`), Sub-pages, Layout và Data Fetching ban đầu.
+   - **Client Components**: Tách biệt thành các interactive islands (Month switcher, Charts interactive tooltips, Form ghi chi tiêu nhanh, Modal/Drawer).
 
 ---
 
@@ -72,7 +72,7 @@ D:\Nancy Finance/
     │   │   └── register/
     │   ├── (dashboard)/
     │   │   ├── layout.tsx
-    │   │   ├── page.tsx          # Dashboard tổng quan
+    │   │   ├── page.tsx          # Server Component mặc định
     │   │   ├── transactions/
     │   │   ├── accounts/
     │   │   ├── credit-cards/
@@ -99,16 +99,26 @@ D:\Nancy Finance/
     │   │   ├── finance-page-header.tsx
     │   │   ├── loan-card.tsx
     │   │   ├── money-display.tsx
+    │   │   ├── nancy-insight-card.tsx
     │   │   ├── transaction-form.tsx
     │   │   └── transaction-table.tsx
     │   ├── layout/               # AppShell (Sidebar, Header, MobileNav)
     │   │   ├── app-header.tsx
     │   │   ├── app-sidebar.tsx
     │   │   └── mobile-nav.tsx
-    │   └── ui/                   # Base UI primitives
+    │   └── ui/                   # Base UI primitives (@base-ui/react)
+    │       ├── badge.tsx
+    │       ├── button.tsx
+    │       ├── card.tsx
+    │       ├── dialog.tsx
+    │       ├── drawer.tsx
+    │       ├── input.tsx
+    │       ├── progress.tsx
+    │       ├── separator.tsx
+    │       └── tabs.tsx
     ├── db/
     │   ├── index.ts              # Neon client + Drizzle instance
-    │   ├── migrations/           # Auto-generated migrations
+    │   ├── migrations/           # Auto-generated migrations (18 tables)
     │   └── schema/               # Drizzle schemas
     │       ├── auth.ts
     │       ├── accounts.ts

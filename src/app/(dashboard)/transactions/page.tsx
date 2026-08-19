@@ -26,7 +26,7 @@ export default function TransactionsPage() {
           <button
             type="button"
             onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Thêm giao dịch</span>
@@ -35,19 +35,19 @@ export default function TransactionsPage() {
       />
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface/80 p-3">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-slate-400" />
+          <Filter className="h-4 w-4 text-muted" />
           <div className="flex items-center gap-1">
             {["all", "expense", "income", "transfer"].map((type) => (
               <button
                 key={type}
                 type="button"
                 onClick={() => setFilterType(type)}
-                className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                   filterType === type
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 {type === "all"
@@ -64,7 +64,7 @@ export default function TransactionsPage() {
 
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-card px-3 py-1 text-xs font-medium text-slate-300 hover:bg-surface-hover hover:text-foreground cursor-pointer"
         >
           <Download className="h-3.5 w-3.5" />
           <span>Xuất Excel / CSV</span>

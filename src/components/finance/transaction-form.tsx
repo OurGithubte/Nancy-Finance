@@ -48,21 +48,21 @@ export function TransactionForm({
   return (
     <form onSubmit={handleSubmit} className={cn("space-y-4", className)}>
       {submittedMessage && (
-        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-center text-xs font-semibold text-emerald-400">
+        <div className="rounded-xl bg-income/10 border border-income/30 p-3 text-center text-xs font-semibold text-income">
           {submittedMessage}
         </div>
       )}
 
       {/* Transaction Type Tabs */}
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-800/80 p-1 border border-slate-700/50">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-card p-1 border border-border">
         <button
           type="button"
           onClick={() => setType("expense")}
           className={cn(
-            "rounded-lg py-1.5 text-xs font-semibold transition-all",
+            "rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer",
             type === "expense"
-              ? "bg-rose-500 text-white shadow-sm"
-              : "text-slate-400 hover:text-slate-200"
+              ? "bg-expense text-slate-100 shadow-sm"
+              : "text-muted hover:text-foreground"
           )}
         >
           Chi tiêu
@@ -71,10 +71,10 @@ export function TransactionForm({
           type="button"
           onClick={() => setType("income")}
           className={cn(
-            "rounded-lg py-1.5 text-xs font-semibold transition-all",
+            "rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer",
             type === "income"
-              ? "bg-emerald-500 text-slate-950 shadow-sm"
-              : "text-slate-400 hover:text-slate-200"
+              ? "bg-income text-slate-950 shadow-sm"
+              : "text-muted hover:text-foreground"
           )}
         >
           Thu nhập
@@ -83,10 +83,10 @@ export function TransactionForm({
           type="button"
           onClick={() => setType("transfer")}
           className={cn(
-            "rounded-lg py-1.5 text-xs font-semibold transition-all",
+            "rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer",
             type === "transfer"
-              ? "bg-blue-500 text-white shadow-sm"
-              : "text-slate-400 hover:text-slate-200"
+              ? "bg-credit text-slate-100 shadow-sm"
+              : "text-muted hover:text-foreground"
           )}
         >
           Chuyển khoản
@@ -95,7 +95,7 @@ export function TransactionForm({
 
       {/* Amount Input */}
       <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1">
+        <label className="block text-xs font-medium text-muted mb-1">
           Số tiền (VND)
         </label>
         <div className="relative">
@@ -105,16 +105,16 @@ export function TransactionForm({
             onChange={handleAmountChange}
             placeholder="0"
             required
-            className="w-full rounded-xl border border-slate-800 bg-slate-800/80 px-3.5 py-2.5 text-lg font-bold text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+            className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2.5 text-lg font-bold text-foreground placeholder:text-muted outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
           />
-          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted">
             ₫
           </div>
         </div>
         {rawAmount > 0 && (
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-[11px] text-muted">
             Bằng chữ / Format:{" "}
-            <span className="text-emerald-400 font-semibold">
+            <span className="text-income font-semibold">
               {formatVND(rawAmount)}
             </span>
           </p>
@@ -124,13 +124,13 @@ export function TransactionForm({
       {/* Category Selection */}
       {type !== "transfer" && (
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">
+          <label className="block text-xs font-medium text-muted mb-1">
             Danh mục
           </label>
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-emerald-500 transition-all"
+            className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-primary transition-all"
           >
             {mockExpenseCategories.map((cat) => (
               <option key={cat.id} value={cat.id}>
@@ -143,13 +143,13 @@ export function TransactionForm({
 
       {/* Account Selection */}
       <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1">
+        <label className="block text-xs font-medium text-muted mb-1">
           {type === "transfer" ? "Từ tài khoản" : "Tài khoản / Ví"}
         </label>
         <select
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          className="w-full rounded-xl border border-slate-800 bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-emerald-500 transition-all"
+          className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-primary transition-all"
         >
           {mockAccounts.map((acc) => (
             <option key={acc.id} value={acc.id}>
@@ -161,7 +161,7 @@ export function TransactionForm({
 
       {/* Note / Description */}
       <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1">
+        <label className="block text-xs font-medium text-muted mb-1">
           Ghi chú
         </label>
         <input
@@ -169,7 +169,7 @@ export function TransactionForm({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="VD: Cà phê sáng với bạn bè..."
-          className="w-full rounded-xl border border-slate-800 bg-slate-800/80 px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-500 transition-all"
+          className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs text-slate-200 placeholder:text-muted outline-none focus:border-primary transition-all"
         />
       </div>
 
@@ -179,7 +179,7 @@ export function TransactionForm({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-slate-800 bg-slate-800/60 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+            className="flex-1 rounded-xl border border-border bg-surface-card py-2.5 text-xs font-semibold text-slate-300 hover:bg-surface-hover hover:text-foreground transition-colors cursor-pointer"
           >
             Hủy
           </button>
@@ -187,7 +187,7 @@ export function TransactionForm({
         <button
           type="submit"
           disabled={isSubmitting || rawAmount <= 0}
-          className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50 disabled:pointer-events-none shadow-lg shadow-emerald-900/30 transition-all"
+          className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-hover disabled:opacity-50 disabled:pointer-events-none shadow-lg shadow-primary/20 transition-all cursor-pointer"
         >
           {isSubmitting ? "Đang lưu..." : "Lưu giao dịch"}
         </button>

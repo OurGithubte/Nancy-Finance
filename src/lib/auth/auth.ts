@@ -13,6 +13,8 @@ export const auth = betterAuth({
       verification: schema.verifications,
     },
   }),
+  secret: process.env.BETTER_AUTH_SECRET || "nancy_finance_build_time_fallback_secret_32chars",
+  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   emailAndPassword: {
     enabled: true,
   },

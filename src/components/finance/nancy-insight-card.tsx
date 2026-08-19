@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import Link from "next/link";
 import { Sparkles, AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -15,25 +13,25 @@ export function NancyInsightCard({ insight, className }: NancyInsightCardProps) 
   const getIcon = () => {
     switch (insight.type) {
       case "warning":
-        return <AlertTriangle className="h-5 w-5 text-amber-400" />;
+        return <AlertTriangle className="h-5 w-5 text-warning" />;
       case "success":
-        return <CheckCircle2 className="h-5 w-5 text-emerald-400" />;
+        return <CheckCircle2 className="h-5 w-5 text-income" />;
       case "tip":
       case "info":
       default:
-        return <Sparkles className="h-5 w-5 text-emerald-400" />;
+        return <Sparkles className="h-5 w-5 text-primary" />;
     }
   };
 
   const getBorderColor = () => {
     switch (insight.type) {
       case "warning":
-        return "border-amber-500/30 bg-amber-500/5";
+        return "border-warning/30 bg-warning/5";
       case "success":
-        return "border-emerald-500/30 bg-emerald-500/5";
+        return "border-income/30 bg-income/5";
       case "tip":
       default:
-        return "border-emerald-500/30 bg-emerald-500/5";
+        return "border-primary/30 bg-primary/5";
     }
   };
 
@@ -46,12 +44,12 @@ export function NancyInsightCard({ insight, className }: NancyInsightCardProps) 
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800/80 border border-slate-700/50">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface border border-border">
           {getIcon()}
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
               <Sparkles className="h-3 w-3" />
               Nancy AI Insight
             </span>
@@ -69,7 +67,7 @@ export function NancyInsightCard({ insight, className }: NancyInsightCardProps) 
         <div className="shrink-0 self-end sm:self-center">
           <Link
             href={insight.actionUrl}
-            className="inline-flex items-center gap-1 rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors"
+            className="inline-flex items-center gap-1 rounded-xl bg-surface-card px-3 py-1.5 text-xs font-medium text-slate-200 border border-border hover:bg-surface-hover hover:text-foreground transition-colors"
           >
             <span>{insight.actionText}</span>
             <ArrowRight className="h-3.5 w-3.5" />

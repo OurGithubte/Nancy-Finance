@@ -59,22 +59,22 @@ export function FinanceDialog({
       {/* Modal Dialog */}
       <div
         className={cn(
-          "relative w-full rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all",
+          "relative w-full rounded-2xl border border-border bg-surface p-6 shadow-2xl transition-all z-10",
           maxWidthClasses[maxWidth]
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-border">
           <div>
-            <h2 className="text-lg font-bold text-slate-100">{title}</h2>
+            <h2 className="text-lg font-bold text-foreground">{title}</h2>
             {description && (
-              <p className="mt-1 text-xs text-slate-400">{description}</p>
+              <p className="mt-1 text-xs text-muted">{description}</p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface-card hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>

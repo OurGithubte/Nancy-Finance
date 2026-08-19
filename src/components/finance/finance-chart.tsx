@@ -40,17 +40,17 @@ export function ExpenseDonutChart({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-2xl border border-slate-800/80 bg-slate-900/90 p-5 shadow-sm backdrop-blur",
+        "flex flex-col rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur",
         className
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {detailLink && (
           <Link
             href={detailLink}
-            className="text-xs font-medium text-slate-400 hover:text-emerald-400 transition-colors"
+            className="text-xs font-medium text-muted hover:text-primary transition-colors"
           >
             Xem chi tiết
           </Link>
@@ -90,10 +90,10 @@ export function ExpenseDonutChart({
 
           {/* Center Text */}
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-xl font-bold tracking-tight text-slate-100">
+            <span className="text-xl font-bold tracking-tight text-foreground">
               {formatCompactVND(totalExpense)}
             </span>
-            <span className="text-[11px] font-medium text-slate-400">
+            <span className="text-[11px] font-medium text-muted">
               Tổng chi
             </span>
           </div>
@@ -108,12 +108,12 @@ export function ExpenseDonutChart({
               onMouseLeave={() => setActiveIndex(null)}
               className={cn(
                 "flex items-center justify-between rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer",
-                activeIndex === idx ? "bg-slate-800/80" : "hover:bg-slate-800/40"
+                activeIndex === idx ? "bg-surface-card" : "hover:bg-surface-card/50"
               )}
             >
               <div className="flex items-center gap-2">
                 <span
-                  className="h-2.5 w-2.5 rounded-full"
+                  className="h-2.5 w-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: item.color }}
                 />
                 <span className="text-xs font-medium text-slate-300">
@@ -121,10 +121,10 @@ export function ExpenseDonutChart({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="font-semibold text-slate-200">
+                <span className="font-semibold text-foreground">
                   {formatVND(item.amount)}
                 </span>
-                <span className="text-slate-400">({item.percentage}%)</span>
+                <span className="text-muted">({item.percentage}%)</span>
               </div>
             </div>
           ))}
@@ -151,23 +151,23 @@ export function CashflowTrendChart({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-2xl border border-slate-800/80 bg-slate-900/90 p-5 shadow-sm backdrop-blur",
+        "flex flex-col rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur",
         className
       )}
     >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
 
         <div className="flex items-center gap-4">
           {/* Legend */}
           <div className="flex items-center gap-3 text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              <span className="h-2.5 w-2.5 rounded-full bg-income" />
               <span className="font-medium text-slate-300">Thu nhập</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+              <span className="h-2.5 w-2.5 rounded-full bg-expense" />
               <span className="font-medium text-slate-300">Chi tiêu</span>
             </div>
           </div>
@@ -177,13 +177,13 @@ export function CashflowTrendChart({
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="appearance-none rounded-lg border border-slate-800 bg-slate-800/80 py-1 pl-3 pr-7 text-xs font-medium text-slate-200 outline-none hover:border-slate-700 cursor-pointer"
+              className="appearance-none rounded-lg border border-border bg-surface-card py-1 pl-3 pr-7 text-xs font-medium text-slate-200 outline-none hover:border-border-card cursor-pointer"
             >
               <option value="6 tháng">6 tháng</option>
               <option value="12 tháng">12 tháng</option>
               <option value="Năm nay">Năm nay</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-muted" />
           </div>
         </div>
       </div>
@@ -194,8 +194,8 @@ export function CashflowTrendChart({
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
             <defs>
               <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#22C55E" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#22C55E" stopOpacity={0.0} />
               </linearGradient>
               <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#EF4444" stopOpacity={0.25} />
@@ -222,24 +222,24 @@ export function CashflowTrendChart({
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
                   return (
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/95 p-3 shadow-xl backdrop-blur">
+                    <div className="rounded-xl border border-border-card bg-surface/95 p-3 shadow-xl backdrop-blur">
                       <p className="text-xs font-semibold text-slate-300 mb-1.5">{label}</p>
                       <div className="space-y-1 text-xs">
                         <div className="flex items-center justify-between gap-4">
-                          <span className="text-emerald-400 font-medium flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                          <span className="text-income font-medium flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-income" />
                             Thu nhập:
                           </span>
-                          <span className="font-bold text-slate-100">
+                          <span className="font-bold text-foreground">
                             {formatVND(payload[0]?.value as number)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-4">
-                          <span className="text-rose-400 font-medium flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-rose-400" />
+                          <span className="text-expense font-medium flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-expense" />
                             Chi tiêu:
                           </span>
-                          <span className="font-bold text-slate-100">
+                          <span className="font-bold text-foreground">
                             {formatVND(payload[1]?.value as number)}
                           </span>
                         </div>
@@ -253,12 +253,12 @@ export function CashflowTrendChart({
             <Area
               type="monotone"
               dataKey="income"
-              stroke="#10B981"
+              stroke="#22C55E"
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#incomeGradient)"
-              dot={{ r: 3, fill: "#10B981", strokeWidth: 0 }}
-              activeDot={{ r: 5, fill: "#10B981", stroke: "#0f172a", strokeWidth: 2 }}
+              dot={{ r: 3, fill: "#22C55E", strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: "#22C55E", stroke: "#0f172a", strokeWidth: 2 }}
             />
             <Area
               type="monotone"

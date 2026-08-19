@@ -15,7 +15,7 @@ export default function GoalsPage() {
         actions={
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Thêm mục tiêu mới</span>
@@ -27,11 +27,11 @@ export default function GoalsPage() {
         {mockSavingGoals.map((goal) => (
           <div
             key={goal.id}
-            className="rounded-2xl border border-slate-800/80 bg-slate-900/90 p-5 backdrop-blur"
+            className="rounded-2xl border border-border bg-surface/90 p-5 backdrop-blur"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-saving/10 border border-saving/20 text-saving">
                   {goal.icon === "plane" ? (
                     <Plane className="h-5 w-5" />
                   ) : (
@@ -39,27 +39,27 @@ export default function GoalsPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-100">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {goal.name}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted">
                     Hạn chót: {goal.targetDate}
                   </p>
                 </div>
               </div>
-              <span className="rounded-md bg-slate-800 px-2 py-1 text-xs font-bold text-emerald-400">
+              <span className="rounded-md bg-surface-card px-2 py-1 text-xs font-bold text-income">
                 {goal.progressPercentage}%
               </span>
             </div>
 
             <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+              <div className="flex items-center justify-between text-xs text-muted mb-1.5">
                 <span>Hiện có: {formatVND(goal.currentAmount)}</span>
                 <span>Mục tiêu: {formatVND(goal.targetAmount)}</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-500 transition-all duration-300"
+                  className="h-full rounded-full bg-gradient-to-r from-saving to-income transition-all duration-300"
                   style={{ width: `${goal.progressPercentage}%` }}
                 />
               </div>

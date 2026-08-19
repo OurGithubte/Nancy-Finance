@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import React from "react";
 import {
   Coins,
   TrendingUp,
@@ -29,26 +27,18 @@ import {
   mockRecentTransactions,
 } from "@/server/mock/dashboard-data";
 
-export default function DashboardOverviewPage() {
-  const [currentMonth, setCurrentMonth] = useState("Tháng 5, 2025");
-
-  const handlePrevMonth = () => {
-    setCurrentMonth("Tháng 4, 2025");
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth("Tháng 6, 2025");
-  };
-
+/**
+ * Dashboard Overview Page - Server Component by default
+ * High-performance RSC rendering with isolated client interactive chart & modal islands.
+ */
+export default async function DashboardOverviewPage() {
   return (
     <div className="space-y-6">
-      {/* 1. Page Header */}
+      {/* 1. Page Header with Period Switcher */}
       <FinancePageHeader
         title="Tổng quan"
         subtitle="Cập nhật tình hình tài chính của bạn"
-        currentPeriod={currentMonth}
-        onPrevPeriod={handlePrevMonth}
-        onNextPeriod={handleNextMonth}
+        currentPeriod="Tháng 5, 2025"
       />
 
       {/* 2. Nancy AI Insight */}
@@ -64,8 +54,8 @@ export default function DashboardOverviewPage() {
           amount={mockKpiSummary.netWorth}
           growth={mockKpiSummary.netWorthGrowth}
           moneyType="neutral"
-          icon={<Coins className="h-4 w-4 text-amber-400" />}
-          iconBgColor="bg-amber-500/10 text-amber-400"
+          icon={<Coins className="h-4 w-4 text-warning" />}
+          iconBgColor="bg-warning/10 text-warning"
         />
 
         {/* Thu nhập */}
@@ -74,8 +64,8 @@ export default function DashboardOverviewPage() {
           amount={mockKpiSummary.totalIncome}
           growth={mockKpiSummary.incomeGrowth}
           moneyType="neutral"
-          icon={<TrendingUp className="h-4 w-4 text-emerald-400" />}
-          iconBgColor="bg-emerald-500/10 text-emerald-400"
+          icon={<TrendingUp className="h-4 w-4 text-income" />}
+          iconBgColor="bg-income/10 text-income"
         />
 
         {/* Chi tiêu */}
@@ -84,8 +74,8 @@ export default function DashboardOverviewPage() {
           amount={mockKpiSummary.totalExpense}
           growth={mockKpiSummary.expenseGrowth}
           moneyType="neutral"
-          icon={<ArrowDownRight className="h-4 w-4 text-rose-400" />}
-          iconBgColor="bg-rose-500/10 text-rose-400"
+          icon={<ArrowDownRight className="h-4 w-4 text-expense" />}
+          iconBgColor="bg-expense/10 text-expense"
         />
 
         {/* Tổng dư nợ */}
@@ -95,8 +85,8 @@ export default function DashboardOverviewPage() {
           growth={mockKpiSummary.debtGrowth}
           moneyType="neutral"
           isDebtCard={true}
-          icon={<CreditCard className="h-4 w-4 text-amber-400" />}
-          iconBgColor="bg-amber-500/10 text-amber-400"
+          icon={<CreditCard className="h-4 w-4 text-warning" />}
+          iconBgColor="bg-warning/10 text-warning"
         />
       </div>
 

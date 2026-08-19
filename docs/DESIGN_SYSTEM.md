@@ -2,6 +2,7 @@
 
 Phong cách thiết kế: **Modern Premium Personal Finance Dashboard**
 Đặc trưng: Giao diện tối hiện đại (Modern Dark Dashboard), độ tương phản cao, phân cấp thị giác rõ ràng, màu sắc ngữ nghĩa tài chính trực quan, density tối ưu cho dữ liệu số liệu dày đặc.
+UI Primitives: Xây dựng trên nền tảng **Base UI (`@base-ui/react`)** kết hợp **Tailwind CSS v4 Semantic Tokens**.
 
 ---
 
@@ -45,12 +46,13 @@ Phong cách thiết kế: **Modern Premium Personal Finance Dashboard**
 
 ---
 
-## 4. Danh mục 13 Shared Finance Components
+## 4. Danh mục Shared Finance Components & Base UI Primitives
 
+### Shared Finance Components (`src/components/finance/`):
 1. **`FinancePageHeader`**: Tiêu đề trang + Bộ chọn tháng (`< Tháng 5, 2025 >`) + Action buttons + Nút thông báo.
 2. **`FinanceKpiCard`**: Thẻ KPI hiển thị số dư, % tăng giảm so với tháng trước, icon chuyên biệt.
-3. **`MoneyDisplay`**: Component số tiền với cấu hình kích thước (`sm`, `md`, `lg`, `xl`), loại biến động (`income`, `expense`, `debt`, `neutral`).
-4. **`FinanceChart`**: Wrapper chuẩn cho Recharts (Donut chart phân bổ chi tiêu, Line/Area chart xu hướng).
+3. **`MoneyDisplay`**: Component số tiền với cấu hình kích thước (`sm`, `md`, `lg`, `xl`, `2xl`), loại biến động (`income`, `expense`, `debt`, `credit`, `saving`, `warning`, `primary`, `neutral`).
+4. **`FinanceChart`**: Wrapper Recharts v3 (Donut chart phân bổ chi tiêu, Line/Area chart xu hướng 12 tháng).
 5. **`AccountCard`**: Thẻ tài khoản hiển thị logo ngân hàng/ví, tên tài khoản, số dư khả dụng.
 6. **`CreditCardCard`**: Thẻ tín dụng với 4 số cuối, hạn mức, đã chi, còn lại, ngày sao kê và hạn trả.
 7. **`LoanCard`**: Thẻ khoản vay hiển thị dư nợ gốc, số tiền trả mỗi tháng, số kỳ còn lại và tiến độ thanh toán.
@@ -60,3 +62,15 @@ Phong cách thiết kế: **Modern Premium Personal Finance Dashboard**
 11. **`FinanceDialog`**: Hộp thoại modal chuẩn hóa trên Desktop.
 12. **`FinanceDrawer`**: Khung trượt từ dưới lên (Bottom Sheet) tối ưu trải nghiệm chạm trên Mobile.
 13. **`FinanceEmptyState`**: Mẫu hiển thị chuẩn khi danh sách tài khoản, giao dịch hoặc ngân sách trống.
+14. **`NancyInsightCard`**: AI Insight cảnh báo phân tích chi tiêu thông minh.
+
+### Base UI Primitives (`src/components/ui/`):
+- `Button`: Biến thể `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`.
+- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
+- `Badge`: Biến thể semantic tokens (`default`, `income`, `expense`, `debt`, `credit`, `saving`, `warning`, `outline`).
+- `Progress`: Thanh tiến độ linh hoạt chỉ thị theo percentage.
+- `Input`: Trường nhập văn bản, mật khẩu, số.
+- `Separator`: Đường kẻ ngang/dọc phân chia bố cục.
+- `Tabs`, `TabsList`, `TabsTrigger`: Chuyển đổi tab tương tác.
+- `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`.
+- `Drawer`, `DrawerContent`, `DrawerHeader`, `DrawerTitle`, `DrawerDescription`.

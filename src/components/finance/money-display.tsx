@@ -1,12 +1,10 @@
-"use client";
-
 import React from "react";
 import { cn } from "@/lib/utils";
 import { formatVND, formatCompactVND } from "@/lib/format/money";
 
 export interface MoneyDisplayProps {
   amount: number | bigint;
-  type?: "income" | "expense" | "debt" | "credit" | "saving" | "neutral";
+  type?: "income" | "expense" | "debt" | "credit" | "saving" | "neutral" | "primary" | "warning";
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
   showSign?: boolean;
   compact?: boolean;
@@ -32,12 +30,14 @@ export function MoneyDisplay({
   };
 
   const typeClasses = {
-    neutral: "text-slate-100",
-    income: "text-emerald-400",
-    expense: "text-rose-400",
-    debt: "text-rose-500",
-    credit: "text-blue-400",
-    saving: "text-purple-400",
+    neutral: "text-foreground",
+    primary: "text-primary",
+    income: "text-income",
+    expense: "text-expense",
+    debt: "text-debt",
+    credit: "text-credit",
+    saving: "text-saving",
+    warning: "text-warning",
   };
 
   const formatted = compact

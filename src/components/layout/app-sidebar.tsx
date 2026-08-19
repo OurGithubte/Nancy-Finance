@@ -44,14 +44,14 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden lg:flex w-64 shrink-0 flex-col justify-between border-r border-slate-800 bg-slate-950/70 p-4 h-screen sticky top-0 backdrop-blur select-none",
+        "hidden lg:flex w-64 shrink-0 flex-col justify-between border-r border-border bg-background p-4 h-screen sticky top-0 backdrop-blur select-none",
         className
       )}
     >
       <div>
         {/* Brand Header */}
         <Link href="/" className="flex items-center gap-3 px-2 py-3 mb-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-md shadow-emerald-500/20 text-slate-950 font-bold text-lg">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-hover shadow-md shadow-primary/20 text-slate-950 font-bold text-lg">
             <svg
               className="h-5 w-5 fill-current"
               viewBox="0 0 24 24"
@@ -63,10 +63,10 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
             </svg>
           </div>
           <div>
-            <div className="font-bold text-base tracking-tight text-slate-100 flex items-center gap-1.5">
+            <div className="font-bold text-base tracking-tight text-foreground flex items-center gap-1.5">
               Nancy Finance
             </div>
-            <p className="text-[11px] text-slate-400">Quản lý tài chính cá nhân</p>
+            <p className="text-[11px] text-muted">Quản lý tài chính cá nhân</p>
           </div>
         </Link>
 
@@ -86,14 +86,14 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-all",
                   isActive
-                    ? "bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20 shadow-sm"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-primary/10 text-primary font-semibold border border-primary/20 shadow-sm"
+                    : "text-muted hover:bg-surface hover:text-foreground"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-4 w-4 shrink-0 transition-colors",
-                    isActive ? "text-emerald-400" : "text-slate-400"
+                    isActive ? "text-primary" : "text-muted"
                   )}
                 />
                 <span>{item.label}</span>
@@ -104,30 +104,30 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
       </div>
 
       {/* Bottom Section: Quick Action Button & User Profile */}
-      <div className="space-y-3 pt-3 border-t border-slate-800/80">
+      <div className="space-y-3 pt-3 border-t border-border">
         {/* Prominent Quick Expense Button */}
         <button
           type="button"
           onClick={onQuickExpense}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-950/40 active:scale-[0.98]"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-all shadow-lg shadow-primary/20 active:scale-[0.98] cursor-pointer"
         >
           <Plus className="h-4 w-4 stroke-[3]" />
           <span>Ghi chi tiêu nhanh</span>
         </button>
 
         {/* User Profile Card */}
-        <div className="flex items-center justify-between rounded-xl bg-slate-900/60 p-2.5 border border-slate-800/80">
+        <div className="flex items-center justify-between rounded-xl bg-surface/60 p-2.5 border border-border">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-emerald-400 border border-slate-700">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
               {mockUserProfile.name.charAt(0)}
             </div>
             <div className="text-left">
-              <span className="text-xs font-semibold text-slate-200 block truncate max-w-[110px]">
+              <span className="text-xs font-semibold text-foreground block truncate max-w-[110px]">
                 {mockUserProfile.name}
               </span>
-              <span className="text-[10px] text-amber-400 font-medium flex items-center gap-1">
+              <span className="text-[10px] text-warning font-medium flex items-center gap-1">
                 Premium
-                <Crown className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                <Crown className="h-2.5 w-2.5 fill-warning text-warning" />
               </span>
             </div>
           </div>

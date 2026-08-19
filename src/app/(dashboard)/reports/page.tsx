@@ -22,7 +22,7 @@ export default function ReportsPage() {
         actions={
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-surface-card transition-colors cursor-pointer"
           >
             <Download className="h-4 w-4" />
             <span>Tải báo cáo PDF</span>

@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,8 +11,8 @@ export interface FinanceKpiCardProps {
   growthLabel?: string; // e.g. "so với tháng trước"
   icon: React.ReactNode;
   iconBgColor?: string;
-  moneyType?: "neutral" | "income" | "expense" | "debt" | "credit" | "saving";
-  isDebtCard?: boolean; // if true, negative growth is good (green), positive growth is bad (red)
+  moneyType?: "neutral" | "income" | "expense" | "debt" | "credit" | "saving" | "primary" | "warning";
+  isDebtCard?: boolean; // if true, negative growth is good (income/green), positive growth is bad (expense/red)
   className?: string;
 }
 
@@ -24,20 +22,20 @@ export function FinanceKpiCard({
   growth,
   growthLabel = "so với tháng trước",
   icon,
-  iconBgColor = "bg-slate-800",
+  iconBgColor = "bg-surface-card",
   moneyType = "neutral",
   isDebtCard = false,
   className,
 }: FinanceKpiCardProps) {
   const isPositive = growth > 0;
-  // For normal cards (income, net worth): positive growth is good (emerald), negative is bad (rose)
-  // For debt cards: positive growth is bad (debt increased -> rose), negative growth is good (debt reduced -> emerald)
+  // For normal cards (income, net worth): positive growth is good (income token), negative is bad (expense token)
+  // For debt cards: positive growth is bad (debt increased -> expense), negative growth is good (debt reduced -> income)
   const isGood = isDebtCard ? !isPositive : isPositive;
 
   return (
     <div
       className={cn(
-        "relative flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-900/90 p-5 shadow-sm backdrop-blur transition-all duration-200 hover:border-slate-700/80 hover:bg-slate-900",
+        "relative flex flex-col justify-between rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur transition-all duration-200 hover:border-border-card hover:bg-surface",
         className
       )}
     >
@@ -64,7 +62,7 @@ export function FinanceKpiCard({
         <div
           className={cn(
             "inline-flex items-center font-medium",
-            isGood ? "text-emerald-400" : "text-rose-400"
+            isGood ? "text-income" : "text-expense"
           )}
         >
           {isPositive ? (
@@ -74,7 +72,7 @@ export function FinanceKpiCard({
           )}
           <span>{formatPercent(Math.abs(growth))}</span>
         </div>
-        <span className="text-slate-400">{growthLabel}</span>
+        <span className="text-muted">{growthLabel}</span>
       </div>
     </div>
   );

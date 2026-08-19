@@ -12,12 +12,12 @@ export interface AppHeaderProps {
 
 export function AppHeader({ className }: AppHeaderProps) {
   return (
-    <header className={cn("flex lg:hidden items-center justify-between border-b border-slate-800 bg-slate-950/80 px-4 py-3 sticky top-0 z-30 backdrop-blur", className)}>
+    <header className={cn("flex lg:hidden items-center justify-between border-b border-border bg-background/80 px-4 py-3 sticky top-0 z-30 backdrop-blur", className)}>
       <Link href="/" className="flex items-center gap-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-bold text-sm shadow-sm shadow-emerald-500/20">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-slate-950 font-bold text-sm shadow-sm shadow-primary/20">
           N
         </div>
-        <span className="font-bold text-sm tracking-tight text-slate-100">
+        <span className="font-bold text-sm tracking-tight text-foreground">
           Nancy Finance
         </span>
       </Link>
@@ -25,13 +25,13 @@ export function AppHeader({ className }: AppHeaderProps) {
       <div className="flex items-center gap-2.5">
         <button
           type="button"
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:text-white"
+          className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-slate-300 hover:text-foreground cursor-pointer"
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500" />
+          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-expense" />
         </button>
 
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-emerald-400 border border-slate-700">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
           {mockUserProfile.name.charAt(0)}
         </div>
       </div>

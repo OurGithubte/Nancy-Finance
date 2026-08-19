@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,22 +14,22 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
   const isWarning = !isOver && budget.usedPercentage >= 85;
 
   const getProgressColor = () => {
-    if (isOver) return "bg-rose-500";
-    if (isWarning) return "bg-amber-500";
-    return "bg-emerald-500";
+    if (isOver) return "bg-expense";
+    if (isWarning) return "bg-warning";
+    return "bg-income";
   };
 
   return (
     <div
       className={cn(
-        "rounded-xl border border-slate-800/80 bg-slate-800/30 p-3.5 transition-colors",
+        "rounded-xl border border-border bg-surface-card/40 p-3.5 transition-colors",
         className
       )}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
-            className="h-2.5 w-2.5 rounded-full"
+            className="h-2.5 w-2.5 rounded-full shrink-0"
             style={{ backgroundColor: budget.color }}
           />
           <h4 className="text-xs font-semibold text-slate-200">
@@ -39,14 +37,14 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
           </h4>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
-          {isOver && <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
+          {isOver && <AlertCircle className="h-3.5 w-3.5 text-expense" />}
           <span
             className={cn(
               "font-bold",
               isOver
-                ? "text-rose-400"
+                ? "text-expense"
                 : isWarning
-                ? "text-amber-400"
+                ? "text-warning"
                 : "text-slate-300"
             )}
           >
@@ -56,7 +54,7 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
       </div>
 
       <div className="mt-2.5">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-300",
@@ -67,7 +65,7 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+      <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
         <span>Đã chi: {formatVND(budget.spentAmount)}</span>
         <span>Hạn mức: {formatVND(budget.allocatedAmount)}</span>
       </div>
