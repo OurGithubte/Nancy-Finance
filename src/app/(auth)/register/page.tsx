@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, User, ArrowRight } from "lucide-react";
+import { signUp } from "@/lib/auth/auth-client";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -11,15 +12,27 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/");
-    }, 500);
+    await signUp.email({
+      email,
+      password,
+      name,
+    }, {
+      onSuccess: () => {
+        router.push("/");
+        router.refresh();
+      },
+      onError: (ctx) => {
+        setError(ctx.error.message || "Đăng ký thất bại");
+        setIsLoading(false);
+      }
+    });
   };
 
   return (
@@ -40,6 +53,7 @@ export default function RegisterPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
               Họ và tên

@@ -4,21 +4,33 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight } from "lucide-react";
+import { signIn } from "@/lib/auth/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("nguyenvana@nancyfinance.vn");
   const [password, setPassword] = useState("••••••••");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/");
-    }, 500);
+    await signIn.email({
+      email,
+      password,
+    }, {
+      onSuccess: () => {
+        router.push("/");
+        router.refresh();
+      },
+      onError: (ctx) => {
+        setError(ctx.error.message || "Đăng nhập thất bại");
+        setIsLoading(false);
+      }
+    });
   };
 
   return (
@@ -39,6 +51,7 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
               Email
