@@ -1,11 +1,37 @@
 import { db } from "@/db";
 import { transactions, financialAccounts } from "@/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, inArray } from "drizzle-orm";
 import { CreateTransactionData, UpdateTransactionData } from "../repositories/transactions";
+
+async function validateAccountOwnership(tx: any, accountIds: (string | null | undefined)[], userId: string) {
+  const uniqueIds = Array.from(new Set(accountIds.filter(Boolean))) as string[];
+  if (uniqueIds.length === 0) return;
+
+  const accounts = await tx
+    .select({ id: financialAccounts.id, userId: financialAccounts.userId })
+    .from(financialAccounts)
+    .where(inArray(financialAccounts.id, uniqueIds));
+
+  if (accounts.length !== uniqueIds.length) {
+    throw new Error("One or more financial accounts not found");
+  }
+  for (const acc of accounts) {
+    if (acc.userId !== userId) {
+      throw new Error("Account ownership validation failed");
+    }
+  }
+}
 
 export class TransactionsService {
   async createTransaction(data: CreateTransactionData) {
     return await db.transaction(async (tx) => {
+      // 0. Validate account ownership
+      const accountsToVerify = [data.accountId];
+      if (data.type === 'transfer' && data.toAccountId) {
+        accountsToVerify.push(data.toAccountId);
+      }
+      await validateAccountOwnership(tx, accountsToVerify, data.userId);
+
       // 1. Insert transaction
       const [newTx] = await tx.insert(transactions).values(data).returning();
 
@@ -99,6 +125,17 @@ export class TransactionsService {
       if (!existingTx) {
         throw new Error("Transaction not found");
       }
+
+      // 1.5 Validate account ownership
+      const accountsToVerify = [
+        existingTx.accountId,
+        data.accountId || existingTx.accountId
+      ];
+      if (existingTx.type === 'transfer' && existingTx.toAccountId) accountsToVerify.push(existingTx.toAccountId);
+      if (data.type === 'transfer' && data.toAccountId) accountsToVerify.push(data.toAccountId);
+      // If it changed type to transfer, data.toAccountId needs check.
+      
+      await validateAccountOwnership(tx, accountsToVerify, userId);
 
       // 2. Reverse balances (same logic as delete)
       const oldAmountStr = existingTx.amount.toString();
