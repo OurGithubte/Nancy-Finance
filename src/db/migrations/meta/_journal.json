@@ -15,6 +15,13 @@
       "when": 1787116225489,
       "tag": "0001_wandering_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787117756359,
+      "tag": "0002_tiny_hammerhead",
+      "breakpoints": true
     }
   ]
 }
