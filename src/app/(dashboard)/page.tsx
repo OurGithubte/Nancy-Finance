@@ -14,45 +14,89 @@ import {
 import { AccountListCard } from "@/components/finance/account-card";
 import { CreditCardListCard } from "@/components/finance/credit-card-card";
 import { LoanListCard } from "@/components/finance/loan-card";
-import { NancyInsightCard } from "@/components/finance/nancy-insight-card";
+// import { NancyInsightCard } from "@/components/finance/nancy-insight-card"; // Removed for Phase 1
 import { TransactionTable } from "@/components/finance/transaction-table";
-import {
-  mockAccounts,
-  mockCreditCards,
-  mockExpenseCategories,
-  mockKpiSummary,
-  mockLoans,
-  mockMonthlyCashflow,
-  mockNancyInsights,
-  mockRecentTransactions,
-} from "@/server/mock/dashboard-data";
+import { dashboardService } from "@/server/services/dashboard";
+import { transactionsRepository } from "@/server/repositories/transactions";
+import { auth } from "@/lib/auth/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
-/**
- * Dashboard Overview Page - Server Component by default
- * High-performance RSC rendering with isolated client interactive chart & modal islands.
- */
-export default async function DashboardOverviewPage() {
+export default async function DashboardOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session?.user) {
+    redirect("/sign-in");
+  }
+
+  const userId = session.user.id;
+  const resolvedParams = await searchParams;
+  const periodParam = resolvedParams.period as string;
+  
+  let periodStart: Date;
+  let periodEnd: Date;
+  
+  if (periodParam) {
+    periodStart = new Date(`${periodParam}-01T00:00:00`);
+    periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0, 23, 59, 59);
+  } else {
+    const now = new Date();
+    periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  }
+
+  const summary = await dashboardService.getDashboardSummary(userId, periodStart, periodEnd);
+  const cashflow = await dashboardService.getCashflowTrend(userId);
+  const recentTransactions = await transactionsRepository.getTransactions(userId, undefined, undefined, 10);
+
+  const mappedTransactions = recentTransactions.map(tx => ({
+    id: tx.id,
+    title: tx.note || (tx.category ? tx.category.name : (tx.type === "transfer" ? "Chuyển khoản" : "Giao dịch")),
+    type: tx.type,
+    amount: tx.amount,
+    categoryId: tx.categoryId || "",
+    categoryName: tx.category?.name || "Khác",
+    categoryColor: tx.category?.color || "#9CA3AF",
+    accountId: tx.accountId,
+    accountName: tx.account?.name || "",
+    transactionDate: tx.transactionDate.toISOString(),
+    note: tx.note || "",
+    status: tx.status
+  }));
+
+  const mappedCategories = summary.expenseCategories.map(c => ({
+    id: c.name,
+    name: c.name,
+    amount: c.amount,
+    percentage: summary.kpiSummary.totalExpense > 0 ? Math.round((c.amount / summary.kpiSummary.totalExpense) * 100) : 0,
+    color: c.color
+  }));
+
+  const mappedCashflow = cashflow.map(c => ({
+    ...c,
+    monthLabel: c.month
+  }));
+
   return (
     <div className="space-y-6">
       {/* 1. Page Header with Period Switcher */}
       <FinancePageHeader
         title="Tổng quan"
         subtitle="Cập nhật tình hình tài chính của bạn"
-        currentPeriod="Tháng 5, 2025"
       />
-
-      {/* 2. Nancy AI Insight */}
-      {mockNancyInsights[0] && (
-        <NancyInsightCard insight={mockNancyInsights[0]} />
-      )}
 
       {/* 3. Top KPI Cards Grid (4 columns) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Tài sản ròng */}
         <FinanceKpiCard
           title="Tài sản ròng"
-          amount={mockKpiSummary.netWorth}
-          growth={mockKpiSummary.netWorthGrowth}
+          amount={summary.kpiSummary.netWorth}
+          growth={summary.kpiSummary.netWorthGrowth}
           moneyType="neutral"
           icon={<Coins className="h-4 w-4 text-warning" />}
           iconBgColor="bg-warning/10 text-warning"
@@ -61,8 +105,8 @@ export default async function DashboardOverviewPage() {
         {/* Thu nhập */}
         <FinanceKpiCard
           title="Thu nhập"
-          amount={mockKpiSummary.totalIncome}
-          growth={mockKpiSummary.incomeGrowth}
+          amount={summary.kpiSummary.totalIncome}
+          growth={summary.kpiSummary.incomeGrowth}
           moneyType="neutral"
           icon={<TrendingUp className="h-4 w-4 text-income" />}
           iconBgColor="bg-income/10 text-income"
@@ -71,8 +115,8 @@ export default async function DashboardOverviewPage() {
         {/* Chi tiêu */}
         <FinanceKpiCard
           title="Chi tiêu"
-          amount={mockKpiSummary.totalExpense}
-          growth={mockKpiSummary.expenseGrowth}
+          amount={summary.kpiSummary.totalExpense}
+          growth={summary.kpiSummary.expenseGrowth}
           moneyType="neutral"
           icon={<ArrowDownRight className="h-4 w-4 text-expense" />}
           iconBgColor="bg-expense/10 text-expense"
@@ -81,8 +125,8 @@ export default async function DashboardOverviewPage() {
         {/* Tổng dư nợ */}
         <FinanceKpiCard
           title="Tổng dư nợ"
-          amount={mockKpiSummary.totalDebt}
-          growth={mockKpiSummary.debtGrowth}
+          amount={summary.kpiSummary.totalDebt}
+          growth={summary.kpiSummary.debtGrowth}
           moneyType="neutral"
           isDebtCard={true}
           icon={<CreditCard className="h-4 w-4 text-warning" />}
@@ -92,21 +136,21 @@ export default async function DashboardOverviewPage() {
 
       {/* 4. Charts Section (2 columns on lg/xl) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Donut Chart: Dòng tiền tháng 5 */}
+        {/* Donut Chart */}
         <div className="lg:col-span-5">
           <ExpenseDonutChart
-            title="Dòng tiền tháng 5"
-            totalExpense={mockKpiSummary.totalExpense}
-            categories={mockExpenseCategories}
+            title="Dòng tiền tháng"
+            totalExpense={summary.kpiSummary.totalExpense}
+            categories={mappedCategories}
             className="h-full"
           />
         </div>
 
-        {/* Trend Area Chart: Thu nhập vs Chi tiêu */}
+        {/* Trend Area Chart */}
         <div className="lg:col-span-7">
           <CashflowTrendChart
-            title="Thu nhập vs Chi tiêu"
-            data={mockMonthlyCashflow}
+            title="Thu nhập vs Chi tiêu (6 tháng)"
+            data={mappedCashflow}
             className="h-full"
           />
         </div>
@@ -116,20 +160,20 @@ export default async function DashboardOverviewPage() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Accounts / Wallets */}
         <AccountListCard
-          accounts={mockAccounts}
-          totalBalance={mockKpiSummary.availableCash}
+          accounts={summary.accounts as any}
+          totalBalance={summary.kpiSummary.availableCash}
         />
 
-        {/* Credit Cards */}
-        <CreditCardListCard cards={mockCreditCards} />
+        {/* Credit Cards (Mock for now, will implement in Phase 2) */}
+        <CreditCardListCard cards={[]} />
 
-        {/* Loans & Debts */}
-        <LoanListCard loans={mockLoans} />
+        {/* Loans & Debts (Mock for now, will implement in Phase 2) */}
+        <LoanListCard loans={[]} />
       </div>
 
       {/* 6. Recent Transactions Table */}
       <div className="pt-2">
-        <TransactionTable transactions={mockRecentTransactions} />
+        <TransactionTable transactions={mappedTransactions as any} />
       </div>
     </div>
   );
