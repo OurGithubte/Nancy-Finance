@@ -27,7 +27,13 @@ export class TransactionsService {
     return await db.transaction(async (tx) => {
       // 0. Validate account ownership
       const accountsToVerify = [data.accountId];
-      if (data.type === 'transfer' && data.toAccountId) {
+      if (data.type === 'transfer') {
+        if (!data.toAccountId) {
+          throw new Error("Transfer requires a destination account");
+        }
+        if (data.accountId === data.toAccountId) {
+          throw new Error("Cannot transfer to the same account");
+        }
         accountsToVerify.push(data.toAccountId);
       }
       await validateAccountOwnership(tx, accountsToVerify, data.userId);
@@ -127,6 +133,19 @@ export class TransactionsService {
       }
 
       // 1.5 Validate account ownership
+      const finalType = data.type ?? existingTx.type;
+      const finalAccountId = data.accountId ?? existingTx.accountId;
+      const finalToAccountId = data.toAccountId !== undefined ? data.toAccountId : existingTx.toAccountId;
+
+      if (finalType === 'transfer') {
+        if (!finalToAccountId) {
+          throw new Error("Transfer requires a destination account");
+        }
+        if (finalAccountId === finalToAccountId) {
+          throw new Error("Cannot transfer to the same account");
+        }
+      }
+
       const accountsToVerify = [
         existingTx.accountId,
         data.accountId || existingTx.accountId

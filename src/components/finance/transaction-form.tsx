@@ -21,11 +21,16 @@ export function TransactionForm({
   onCancel,
   className,
 }: TransactionFormProps) {
+  const canTransfer = accounts.length >= 2;
   const [type, setType] = useState<TransactionType>("expense");
   const [amountStr, setAmountStr] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id || "");
   const [accountId, setAccountId] = useState(accounts[0]?.id || "");
-  const [toAccountId, setToAccountId] = useState(accounts[1]?.id || accounts[0]?.id || "");
+  
+  // Initialize toAccountId to the first account that is NOT accountId, if possible
+  const defaultToAccountId = accounts.find(a => a.id !== accounts[0]?.id)?.id || "";
+  const [toAccountId, setToAccountId] = useState(defaultToAccountId);
+  
   const [note, setNote] = useState("");
   const [isPending, startTransition] = useTransition();
   const [submittedMessage, setSubmittedMessage] = useState<string | null>(null);
@@ -37,9 +42,19 @@ export function TransactionForm({
     setAmountStr(raw);
   };
 
+  const handleAccountIdChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newAccountId = e.target.value;
+    setAccountId(newAccountId);
+    if (type === "transfer" && toAccountId === newAccountId) {
+      const nextAvailable = accounts.find(a => a.id !== newAccountId)?.id || "";
+      setToAccountId(nextAvailable);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (rawAmount <= 0 || !accountId) return;
+    if (type === "transfer" && (!toAccountId || accountId === toAccountId)) return;
     
     startTransition(async () => {
       try {
@@ -66,12 +81,20 @@ export function TransactionForm({
   };
 
   const filteredCategories = categories.filter((c) => c.type === type);
+  const destinationAccounts = accounts.filter((acc) => acc.id !== accountId);
 
   return (
     <form onSubmit={handleSubmit} className={cn("space-y-4", className)}>
       {submittedMessage && (
         <div className="rounded-xl bg-income/10 border border-income/30 p-3 text-center text-xs font-semibold text-income">
           {submittedMessage}
+        </div>
+      )}
+
+      {/* Warning for 1 account */}
+      {type === "transfer" && !canTransfer && (
+        <div className="rounded-xl bg-warning/10 border border-warning/30 p-3 text-center text-xs font-semibold text-warning">
+          Cần ít nhất 2 tài khoản/ví để thực hiện chuyển khoản.
         </div>
       )}
 
@@ -178,7 +201,7 @@ export function TransactionForm({
         </label>
         <select
           value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
+          onChange={handleAccountIdChange}
           className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-primary transition-all"
         >
           {accounts.map((acc) => (
@@ -197,9 +220,10 @@ export function TransactionForm({
           <select
             value={toAccountId}
             onChange={(e) => setToAccountId(e.target.value)}
-            className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-primary transition-all"
+            disabled={!canTransfer}
+            className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs font-medium text-slate-200 outline-none focus:border-primary transition-all disabled:opacity-50"
           >
-            {accounts.map((acc) => (
+            {destinationAccounts.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.name} (Số dư: {formatVND(acc.balance)})
               </option>
@@ -235,7 +259,7 @@ export function TransactionForm({
         )}
         <button
           type="submit"
-          disabled={isPending || rawAmount <= 0}
+          disabled={isPending || rawAmount <= 0 || (type === "transfer" && (!canTransfer || accountId === toAccountId))}
           className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-hover disabled:opacity-50 disabled:pointer-events-none shadow-lg shadow-primary/20 transition-all cursor-pointer"
         >
           {isPending ? "Đang lưu..." : "Lưu giao dịch"}
