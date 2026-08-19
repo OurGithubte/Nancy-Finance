@@ -31,7 +31,7 @@ export default async function DashboardOverviewPage({
     headers: await headers(),
   });
   if (!session?.user) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   const userId = session.user.id;

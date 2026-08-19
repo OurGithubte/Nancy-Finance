@@ -13,7 +13,7 @@ export default async function AccountsPage() {
     headers: await headers(),
   });
   if (!session?.user) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   const accounts = await accountsService.getAccounts(session.user.id);
