@@ -1,58 +1,40 @@
-"use client";
-
 import React from "react";
-import { FinancePageHeader } from "@/components/finance/finance-page-header";
-import { CreditCardListCard } from "@/components/finance/credit-card-card";
-import { mockCreditCards } from "@/server/mock/dashboard-data";
-import { Plus } from "lucide-react";
-import { formatVND } from "@/lib/format/money";
+import { auth } from "@/lib/auth/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { creditCardsRepository } from "@/server/repositories/credit-cards";
+import { accountsService } from "@/server/services/accounts";
+import { CreditCardsClient } from "./credit-cards-client";
 
-export default function CreditCardsPage() {
-  const totalLimit = mockCreditCards.reduce((acc, c) => acc + c.creditLimit, 0);
-  const totalUsed = mockCreditCards.reduce((acc, c) => acc + c.currentBalance, 0);
-  const totalAvailable = totalLimit - totalUsed;
+export default async function CreditCardsPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session?.user) {
+    redirect("/login");
+  }
 
-  return (
-    <div className="space-y-6">
-      <FinancePageHeader
-        title="Thẻ tín dụng"
-        subtitle="Quản lý hạn mức chi tiêu, ngày sao kê và hạn trả nợ thẻ"
-        actions={
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Thêm thẻ tín dụng</span>
-          </button>
-        }
-      />
+  const creditCards = await creditCardsRepository.getCreditCards(session.user.id);
+  const accounts = await accountsService.getAccounts(session.user.id);
+  const activeAccounts = accounts.filter(a => a.isActive);
 
-      {/* Overview stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-surface/90 p-4">
-          <span className="text-xs text-muted">Tổng hạn mức cấp</span>
-          <div className="mt-1 text-lg font-bold text-foreground">
-            {formatVND(totalLimit)}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface/90 p-4">
-          <span className="text-xs text-muted">Dư nợ đã chi tiêu</span>
-          <div className="mt-1 text-lg font-bold text-expense">
-            {formatVND(totalUsed)}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface/90 p-4">
-          <span className="text-xs text-muted">Hạn mức khả dụng</span>
-          <div className="mt-1 text-lg font-bold text-income">
-            {formatVND(totalAvailable)}
-          </div>
-        </div>
-      </div>
+  const mappedCards = creditCards.map(c => {
+    const available = c.creditLimit - c.currentBalance;
+    const usedPercentage = c.creditLimit > 0 ? Math.round((c.currentBalance / c.creditLimit) * 100) : 0;
+    return {
+      id: c.id,
+      name: c.name,
+      bankName: c.bankName,
+      last4: c.last4Digits,
+      creditLimit: c.creditLimit,
+      currentBalance: c.currentBalance,
+      availableLimit: available,
+      usedPercentage,
+      statementDay: c.statementDay,
+      dueDay: `Ngày ${c.dueDay} hàng tháng`,
+      color: c.color || undefined,
+    };
+  });
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <CreditCardListCard cards={mockCreditCards} />
-      </div>
-    </div>
-  );
+  return <CreditCardsClient cards={mappedCards} accounts={activeAccounts} />;
 }

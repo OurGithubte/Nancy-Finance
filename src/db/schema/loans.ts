@@ -22,6 +22,7 @@ export const loans = pgTable(
     endDate: timestamp("end_date").notNull(),
     status: text("status").notNull().$type<"active" | "settled" | "defaulted">().default("active"),
     color: text("color").default("#DC2626"),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

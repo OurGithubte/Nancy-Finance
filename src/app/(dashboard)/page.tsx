@@ -18,6 +18,8 @@ import { LoanListCard } from "@/components/finance/loan-card";
 import { TransactionTable } from "@/components/finance/transaction-table";
 import { dashboardService } from "@/server/services/dashboard";
 import { transactionsRepository } from "@/server/repositories/transactions";
+import { creditCardsRepository } from "@/server/repositories/credit-cards";
+import { loansRepository } from "@/server/repositories/loans";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -53,6 +55,8 @@ export default async function DashboardOverviewPage({
   const summary = await dashboardService.getDashboardSummary(userId, periodStart, periodEnd);
   const cashflow = await dashboardService.getCashflowTrend(userId);
   const recentTransactions = await transactionsRepository.getTransactions(userId, undefined, undefined, 10);
+  const creditCards = await creditCardsRepository.getCreditCards(userId);
+  const loans = await loansRepository.getLoans(userId);
 
   const mappedTransactions = recentTransactions.map(tx => ({
     id: tx.id,
@@ -81,6 +85,42 @@ export default async function DashboardOverviewPage({
     ...c,
     monthLabel: c.month
   }));
+
+  const mappedCards = creditCards.map(c => {
+    const available = c.creditLimit - c.currentBalance;
+    const usedPercentage = c.creditLimit > 0 ? Math.round((c.currentBalance / c.creditLimit) * 100) : 0;
+    return {
+      id: c.id,
+      name: c.name,
+      bankName: c.bankName,
+      last4: c.last4Digits,
+      creditLimit: c.creditLimit,
+      currentBalance: c.currentBalance,
+      availableLimit: available,
+      usedPercentage,
+      statementDay: c.statementDay,
+      dueDay: `Ngày ${c.dueDay} hàng tháng`,
+      color: c.color || undefined
+    };
+  });
+
+  const mappedLoans = loans.map(l => {
+    const paid = l.totalAmount - l.remainingAmount;
+    const paidPercentage = l.totalAmount > 0 ? Math.round((paid / l.totalAmount) * 100) : 0;
+    return {
+      id: l.id,
+      name: l.name,
+      lenderName: l.lenderName,
+      totalAmount: l.totalAmount,
+      remainingAmount: l.remainingAmount,
+      monthlyPayment: l.monthlyPayment,
+      totalTerms: l.totalTerms,
+      remainingTerms: l.remainingTerms,
+      interestRate: Number(l.interestRate),
+      paidPercentage,
+      color: l.color || undefined
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -164,11 +204,11 @@ export default async function DashboardOverviewPage({
           totalBalance={summary.kpiSummary.availableCash}
         />
 
-        {/* Credit Cards (Mock for now, will implement in Phase 2) */}
-        <CreditCardListCard cards={[]} />
+        {/* Credit Cards */}
+        <CreditCardListCard cards={mappedCards} />
 
-        {/* Loans & Debts (Mock for now, will implement in Phase 2) */}
-        <LoanListCard loans={[]} />
+        {/* Loans & Debts */}
+        <LoanListCard loans={mappedLoans} />
       </div>
 
       {/* 6. Recent Transactions Table */}

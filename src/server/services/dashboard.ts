@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { transactions, financialAccounts, categories } from "@/db/schema";
+import { transactions, financialAccounts, categories, creditCards, loans } from "@/db/schema";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 
 export class DashboardService {
@@ -24,8 +24,19 @@ export class DashboardService {
       }
     }
 
-    // Since we don't have credit cards & loans implemented in Phase 1 yet, totalDebt = 0
-    // If we had them, we would sum them up here.
+    const cards = await db.query.creditCards.findMany({
+      where: and(eq(creditCards.userId, userId), eq(creditCards.isActive, true)),
+    });
+    const allLoans = await db.query.loans.findMany({
+      where: and(eq(loans.userId, userId), eq(loans.isActive, true)),
+    });
+
+    for (const card of cards) {
+      totalDebt += card.currentBalance;
+    }
+    for (const loan of allLoans) {
+      totalDebt += loan.remainingAmount;
+    }
 
     // 2. Get Month Transactions
     const periodTxs = await db

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, bigint, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, bigint, integer, boolean, index } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 import { financialAccounts } from "./accounts";
 
@@ -18,6 +18,7 @@ export const creditCards = pgTable(
     statementDay: integer("statement_day").notNull().default(20), // 1-31
     dueDay: integer("due_day").notNull().default(5), // 1-31
     color: text("color").default("#3B82F6"),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -7,9 +7,10 @@ import { formatVND } from "@/lib/format/money";
 export interface LoanListCardProps {
   loans: LoanItem[];
   className?: string;
+  onPayment?: (loan: LoanItem) => void;
 }
 
-export function LoanListCard({ loans, className }: LoanListCardProps) {
+export function LoanListCard({ loans, className, onPayment }: LoanListCardProps) {
   return (
     <div
       className={cn(
@@ -74,6 +75,13 @@ export function LoanListCard({ loans, className }: LoanListCardProps) {
                     style={{ width: `${loan.paidPercentage}%` }}
                   />
                 </div>
+                {onPayment && (
+                  <div className="mt-2 flex justify-end">
+                    <button onClick={() => onPayment(loan)} className="text-[10px] px-2 py-1 rounded-md bg-saving/10 text-saving hover:bg-saving/20 cursor-pointer">
+                      Trả nợ
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -1,51 +1,40 @@
-"use client";
-
 import React from "react";
-import { FinancePageHeader } from "@/components/finance/finance-page-header";
-import { LoanListCard } from "@/components/finance/loan-card";
-import { mockLoans } from "@/server/mock/dashboard-data";
-import { Plus } from "lucide-react";
-import { formatVND } from "@/lib/format/money";
+import { auth } from "@/lib/auth/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { loansRepository } from "@/server/repositories/loans";
+import { accountsService } from "@/server/services/accounts";
+import { LoansClient } from "./loans-client";
 
-export default function LoansPage() {
-  const totalDebt = mockLoans.reduce((acc, l) => acc + l.remainingAmount, 0);
-  const totalMonthly = mockLoans.reduce((acc, l) => acc + l.monthlyPayment, 0);
+export default async function LoansPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session?.user) {
+    redirect("/login");
+  }
 
-  return (
-    <div className="space-y-6">
-      <FinancePageHeader
-        title="Khoản vay & Nợ"
-        subtitle="Theo dõi tiến độ thanh toán nợ gốc, lãi suất và lịch trả góp"
-        actions={
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Thêm khoản vay</span>
-          </button>
-        }
-      />
+  const loans = await loansRepository.getLoans(session.user.id);
+  const accounts = await accountsService.getAccounts(session.user.id);
+  const activeAccounts = accounts.filter(a => a.isActive);
 
-      {/* Overview stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-surface/90 p-4">
-          <span className="text-xs text-muted">Tổng dư nợ còn lại</span>
-          <div className="mt-1 text-xl font-bold text-expense">
-            {formatVND(totalDebt)}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface/90 p-4">
-          <span className="text-xs text-muted">Tổng trả hàng tháng</span>
-          <div className="mt-1 text-xl font-bold text-warning">
-            {formatVND(totalMonthly)}
-          </div>
-        </div>
-      </div>
+  const mappedLoans = loans.map(l => {
+    const paid = l.totalAmount - l.remainingAmount;
+    const paidPercentage = l.totalAmount > 0 ? Math.round((paid / l.totalAmount) * 100) : 0;
+    return {
+      id: l.id,
+      name: l.name,
+      lenderName: l.lenderName,
+      totalAmount: l.totalAmount,
+      remainingAmount: l.remainingAmount,
+      monthlyPayment: l.monthlyPayment,
+      totalTerms: l.totalTerms,
+      remainingTerms: l.remainingTerms,
+      interestRate: Number(l.interestRate),
+      paidPercentage,
+      color: l.color || undefined,
+    };
+  });
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <LoanListCard loans={mockLoans} />
-      </div>
-    </div>
-  );
+  return <LoansClient loans={mappedLoans} accounts={activeAccounts} />;
 }

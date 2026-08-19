@@ -7,11 +7,15 @@ import { formatVND } from "@/lib/format/money";
 export interface CreditCardListCardProps {
   cards: CreditCardItem[];
   className?: string;
+  onExpense?: (card: CreditCardItem) => void;
+  onPayment?: (card: CreditCardItem) => void;
 }
 
 export function CreditCardListCard({
   cards,
   className,
+  onExpense,
+  onPayment,
 }: CreditCardListCardProps) {
   return (
     <div
@@ -78,8 +82,22 @@ export function CreditCardListCard({
                     style={{ width: `${card.usedPercentage}%` }}
                   />
                 </div>
-                <div className="mt-1 text-right text-[10px] font-medium text-muted">
-                  {card.usedPercentage}%
+                <div className="mt-1 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {onExpense && (
+                      <button onClick={() => onExpense(card)} className="text-[10px] px-2 py-1 rounded-md bg-expense/10 text-expense hover:bg-expense/20 cursor-pointer">
+                        Tiêu thẻ
+                      </button>
+                    )}
+                    {onPayment && (
+                      <button onClick={() => onPayment(card)} className="text-[10px] px-2 py-1 rounded-md bg-saving/10 text-saving hover:bg-saving/20 cursor-pointer">
+                        Trả nợ
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-medium text-muted">
+                    {card.usedPercentage}%
+                  </div>
                 </div>
               </div>
             </div>
