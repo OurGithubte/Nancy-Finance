@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import { NancyLogo } from "@/components/branding/nancy-logo";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth/auth-client";
 
@@ -17,9 +18,7 @@ export function AppHeader({ className }: AppHeaderProps) {
   return (
     <header className={cn("flex lg:hidden items-center justify-between border-b border-border bg-background/80 px-4 py-3 sticky top-0 z-30 backdrop-blur", className)}>
       <Link href="/" className="flex items-center gap-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-slate-950 font-bold text-sm shadow-sm shadow-primary/20">
-          N
-        </div>
+        <NancyLogo className="h-8 w-8" sizes="32px" priority />
         <span className="font-bold text-sm tracking-tight text-foreground">
           Nancy Finance
         </span>

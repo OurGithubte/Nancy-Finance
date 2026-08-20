@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, bigint, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, bigint, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 import { financialAccounts } from "./accounts";
 import { categories } from "./categories";
@@ -27,6 +27,8 @@ export const transactions = pgTable(
       .notNull()
       .$type<"completed" | "pending" | "cancelled">()
       .default("completed"),
+    recurringTransactionId: text("recurring_transaction_id"),
+    recurringOccurrenceDate: timestamp("recurring_occurrence_date"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -34,5 +36,6 @@ export const transactions = pgTable(
     index("transactions_user_date_idx").on(table.userId, table.transactionDate),
     index("transactions_account_idx").on(table.accountId),
     index("transactions_category_idx").on(table.categoryId),
+    uniqueIndex("transactions_recurring_occurrence_unq").on(table.recurringTransactionId, table.recurringOccurrenceDate),
   ]
 );

@@ -23,52 +23,59 @@ async function validateAccountOwnership(tx: any, accountIds: (string | null | un
 }
 
 export class TransactionsService {
-  async createTransaction(data: CreateTransactionData) {
+  async createTransaction(data: CreateTransactionData, externalTx?: any) {
+    if (externalTx) {
+      return await this._createTx(data, externalTx);
+    }
     return await db.transaction(async (tx) => {
-      // 0. Validate account ownership
-      const accountsToVerify = [data.accountId];
-      if (data.type === 'transfer') {
-        if (!data.toAccountId) {
-          throw new Error("Transfer requires a destination account");
-        }
-        if (data.accountId === data.toAccountId) {
-          throw new Error("Cannot transfer to the same account");
-        }
-        accountsToVerify.push(data.toAccountId);
-      }
-      await validateAccountOwnership(tx, accountsToVerify, data.userId);
-
-      // 1. Insert transaction
-      const [newTx] = await tx.insert(transactions).values(data).returning();
-
-      // 2. Update balances
-      const amountStr = data.amount.toString();
-      
-      if (data.type === "expense") {
-        await tx
-          .update(financialAccounts)
-          .set({ balance: sql`${financialAccounts.balance} - ${amountStr}::bigint` })
-          .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
-      } else if (data.type === "income") {
-        await tx
-          .update(financialAccounts)
-          .set({ balance: sql`${financialAccounts.balance} + ${amountStr}::bigint` })
-          .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
-      } else if (data.type === "transfer" && data.toAccountId) {
-        // Decrease source
-        await tx
-          .update(financialAccounts)
-          .set({ balance: sql`${financialAccounts.balance} - ${amountStr}::bigint` })
-          .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
-        // Increase destination
-        await tx
-          .update(financialAccounts)
-          .set({ balance: sql`${financialAccounts.balance} + ${amountStr}::bigint` })
-          .where(and(eq(financialAccounts.id, data.toAccountId), eq(financialAccounts.userId, data.userId)));
-      }
-
-      return newTx;
+      return await this._createTx(data, tx);
     });
+  }
+
+  private async _createTx(data: CreateTransactionData, tx: any) {
+    // 0. Validate account ownership
+    const accountsToVerify = [data.accountId];
+    if (data.type === 'transfer') {
+      if (!data.toAccountId) {
+        throw new Error("Transfer requires a destination account");
+      }
+      if (data.accountId === data.toAccountId) {
+        throw new Error("Cannot transfer to the same account");
+      }
+      accountsToVerify.push(data.toAccountId);
+    }
+    await validateAccountOwnership(tx, accountsToVerify, data.userId);
+
+    // 1. Insert transaction
+    const [newTx] = await tx.insert(transactions).values(data).returning();
+
+    // 2. Update balances
+    const amountStr = data.amount.toString();
+    
+    if (data.type === "expense") {
+      await tx
+        .update(financialAccounts)
+        .set({ balance: sql`${financialAccounts.balance} - ${amountStr}::bigint` })
+        .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
+    } else if (data.type === "income") {
+      await tx
+        .update(financialAccounts)
+        .set({ balance: sql`${financialAccounts.balance} + ${amountStr}::bigint` })
+        .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
+    } else if (data.type === "transfer" && data.toAccountId) {
+      // Decrease source
+      await tx
+        .update(financialAccounts)
+        .set({ balance: sql`${financialAccounts.balance} - ${amountStr}::bigint` })
+        .where(and(eq(financialAccounts.id, data.accountId), eq(financialAccounts.userId, data.userId)));
+      // Increase destination
+      await tx
+        .update(financialAccounts)
+        .set({ balance: sql`${financialAccounts.balance} + ${amountStr}::bigint` })
+        .where(and(eq(financialAccounts.id, data.toAccountId), eq(financialAccounts.userId, data.userId)));
+    }
+
+    return newTx;
   }
 
   async deleteTransaction(id: string, userId: string) {

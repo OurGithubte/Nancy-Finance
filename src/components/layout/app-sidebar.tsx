@@ -17,6 +17,7 @@ import {
   Plus,
   LogOut,
 } from "lucide-react";
+import { NancyLogo } from "@/components/branding/nancy-logo";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "@/lib/auth/auth-client";
 
@@ -60,17 +61,11 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
       <div>
         {/* Brand Header */}
         <Link href="/" className="flex items-center gap-3 px-2 py-3 mb-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-hover shadow-md shadow-primary/20 text-slate-950 font-bold text-lg">
-            <svg
-              className="h-5 w-5 fill-current"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" opacity="0.8" />
-              <path d="M2 17L12 22L22 17V12L12 17L2 12V17Z" fill="currentColor" />
-            </svg>
-          </div>
+          <NancyLogo
+            className="h-11 w-11 shadow-md shadow-primary/20"
+            sizes="44px"
+            priority
+          />
           <div>
             <div className="font-bold text-base tracking-tight text-foreground flex items-center gap-1.5">
               Nancy Finance
