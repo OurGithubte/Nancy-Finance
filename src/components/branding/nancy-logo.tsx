@@ -17,12 +17,12 @@ export function NancyLogo({
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 overflow-hidden rounded-full bg-emerald-50 ring-1 ring-emerald-500/30 shadow-sm",
+        "relative inline-flex shrink-0 overflow-hidden rounded-full bg-emerald-50 ring-1 ring-emerald-400/40 shadow-sm",
         className
       )}
     >
       <Image
-        src="/branding/nancy-finance-logo.png"
+        src="/branding/nancy-finance-mark-v3.svg"
         alt={alt}
         fill
         sizes={sizes}
