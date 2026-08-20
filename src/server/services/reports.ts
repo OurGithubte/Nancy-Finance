@@ -28,12 +28,29 @@ import {
 /**
  * Build an exact Date object for a given YYYY-MM-DD in Asia/Ho_Chi_Minh (+07:00)
  */
-function createVNDate(year: number, month: number, day: number): Date {
+export function createVNDate(year: number, month: number, day: number): Date {
   const y = year.toString().padStart(4, "0");
   const m = month.toString().padStart(2, "0");
   const d = day.toString().padStart(2, "0");
   // ISO string with +07:00 offset ensures exact boundary
   return new Date(`${y}-${m}-${d}T00:00:00+07:00`);
+}
+
+/**
+ * Extract Y, M, D explicitly in Asia/Ho_Chi_Minh timezone
+ */
+export function getVNDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  
+  const y = parseInt(parts.find(p => p.type === "year")!.value, 10);
+  const m = parseInt(parts.find(p => p.type === "month")!.value, 10);
+  const d = parseInt(parts.find(p => p.type === "day")!.value, 10);
+  return { y, m, d };
 }
 
 function parseCustomDate(dateStr: string | null, isEnd: boolean = false): Date | null {
@@ -160,14 +177,25 @@ export class ReportService {
     const [assetsResult] = await db
       .select({ total: sum(financialAccounts.balance) })
       .from(financialAccounts)
-      .where(eq(financialAccounts.userId, userId));
+      .where(
+        and(
+          eq(financialAccounts.userId, userId),
+          eq(financialAccounts.isExcludedFromTotal, false)
+        )
+      );
     let totalAssets = Number(assetsResult?.total || 0);
 
     // Adjust assets back to endDate if endDate is in the past
     const now = new Date();
     if (endDate < now) {
+      // Only include transactions that involve accounts included in totalAssets
       const futureTxs = await db
-        .select({ type: transactions.type, amount: transactions.amount, toAccountId: transactions.toAccountId })
+        .select({ 
+          type: transactions.type, 
+          amount: transactions.amount, 
+          accountId: transactions.accountId,
+          toAccountId: transactions.toAccountId 
+        })
         .from(transactions)
         .where(
           and(
@@ -177,14 +205,31 @@ export class ReportService {
           )
         );
         
+      // We need a map of which accounts are excluded to correctly reverse transactions
+      const accountsStatus = await db
+        .select({ id: financialAccounts.id, isExcluded: financialAccounts.isExcludedFromTotal })
+        .from(financialAccounts)
+        .where(eq(financialAccounts.userId, userId));
+        
+      const isAccountIncluded = (id: string | null) => {
+        if (!id) return false;
+        const acc = accountsStatus.find(a => a.id === id);
+        return acc ? !acc.isExcluded : false;
+      };
+
       for (const tx of futureTxs) {
-        if (tx.type === "income") totalAssets -= tx.amount;
-        if (tx.type === "expense") totalAssets += tx.amount;
+        const fromIncluded = isAccountIncluded(tx.accountId);
+        const toIncluded = isAccountIncluded(tx.toAccountId);
+        
+        if (tx.type === "income" && fromIncluded) {
+          totalAssets -= tx.amount;
+        }
+        if (tx.type === "expense" && fromIncluded) {
+          totalAssets += tx.amount;
+        }
         if (tx.type === "transfer") {
-          totalAssets += tx.amount; // money left an account
-          if (tx.toAccountId) {
-            totalAssets -= tx.amount; // money entered an account
-          }
+          if (fromIncluded) totalAssets += tx.amount; // money left an included account
+          if (toIncluded) totalAssets -= tx.amount; // money entered an included account
         }
       }
     }
@@ -318,7 +363,7 @@ export class ReportService {
       savingsRateChange: prevSavingsRate !== null && savingsRate !== null ? savingsRate - prevSavingsRate : null,
       hasPreviousData,
     };
-
+    
     // 6. Expense Category Share
     const categoryGroupQuery = await db
       .select({
@@ -332,7 +377,7 @@ export class ReportService {
       .orderBy(desc(sum(transactions.amount)));
 
     const categoryIds = categoryGroupQuery.map(c => c.categoryId).filter(Boolean) as string[];
-    const categoryDetails = categoryIds.length > 0 ? await db.select().from(categories).where(inArray(categories.id, categoryIds)) : [];
+    const categoryDetails = categoryIds.length > 0 ? await db.select().from(categories).where(and(inArray(categories.id, categoryIds), eq(categories.userId, userId))) : [];
     
     const expenseCategories: ExpenseCategoryShare[] = categoryGroupQuery.map((row, idx) => {
       const cat = categoryDetails.find(c => c.id === row.categoryId);
@@ -348,20 +393,28 @@ export class ReportService {
     });
 
     // 7. Cashflow Trend (Monthly by default)
-    // Build a map of YYYY-MM
-    const startYearMonth = startDate.getFullYear() * 12 + startDate.getMonth();
-    const endYearMonth = endDate.getFullYear() * 12 + endDate.getMonth();
+    // Build a map of YYYY-MM explicitly via VN time
+    const startParts = getVNDateParts(startDate);
+    const endParts = getVNDateParts(endDate);
+    const startYearMonth = startParts.y * 12 + startParts.m;
+    const endYearMonth = endParts.y * 12 + endParts.m;
     
     const monthsMap = new Map<string, MonthlyCashflowPoint>();
     for (let m = startYearMonth; m <= endYearMonth; m++) {
       const y = Math.floor(m / 12);
-      const month = m % 12;
+      let month = m % 12;
+      let year = y;
+      if (month === 0) {
+        month = 12;
+        year = y - 1;
+      }
+      
       // if exclusive end date is 1st of month, don't include it unless start==end
-      if (y === endDate.getFullYear() && month === endDate.getMonth() && m !== startYearMonth) {
+      if (year === endParts.y && month === endParts.m && m !== startYearMonth && endParts.d === 1) {
         continue; // exclude the boundary month if it's the exact exclusive bound
       }
-      const label = `T${(month + 1).toString().padStart(2, "0")}/${y.toString().slice(2)}`;
-      monthsMap.set(`${y}-${month}`, { month: label, income: 0, expense: 0, netCashflow: 0 });
+      const label = `T${month.toString().padStart(2, "0")}/${year.toString().slice(2)}`;
+      monthsMap.set(`${year}-${month}`, { month: label, income: 0, expense: 0, netCashflow: 0 });
     }
 
     const trendQuery = await db
@@ -380,10 +433,8 @@ export class ReportService {
       ));
 
     for (const tx of trendQuery) {
-      const d = tx.date;
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      const key = `${y}-${m}`;
+      const parts = getVNDateParts(tx.date);
+      const key = `${parts.y}-${parts.m}`;
       if (monthsMap.has(key)) {
         const point = monthsMap.get(key)!;
         if (tx.type === "income") point.income += tx.amount;
@@ -416,19 +467,37 @@ export class ReportService {
         );
 
       if (allBudgets.length > 0) {
-        // We have budgets, let's join with categories and sum up spent if they span multiple months for the same category
         const budgetCatIds = [...new Set(allBudgets.map(b => b.categoryId))];
-        const bCats = await db.select().from(categories).where(inArray(categories.id, budgetCatIds));
+        // Enforce user isolation on category lookup
+        const bCats = await db
+          .select()
+          .from(categories)
+          .where(and(inArray(categories.id, budgetCatIds), eq(categories.userId, userId)));
+          
+        // Calculate exact spentAmount dynamically from transactions in [startDate, endDate)
+        const budgetSpentTxs = await db
+          .select({ categoryId: transactions.categoryId, amount: sum(transactions.amount) })
+          .from(transactions)
+          .where(and(baseFilter, eq(transactions.type, "expense"), inArray(transactions.categoryId, budgetCatIds)))
+          .groupBy(transactions.categoryId);
+          
+        const spentMap = new Map<string, number>();
+        budgetSpentTxs.forEach(t => {
+          if (t.categoryId) spentMap.set(t.categoryId, Number(t.amount));
+        });
         
         const catMap = new Map<string, BudgetPerformanceItem>();
         for (const b of allBudgets) {
+          // If category doesn't belong to user, it will be ignored because c is undefined or we can explicitly skip
           const c = bCats.find(cat => cat.id === b.categoryId);
+          if (!c) continue; 
+          
           if (!catMap.has(b.categoryId)) {
             catMap.set(b.categoryId, {
               categoryId: b.categoryId,
-              categoryName: c?.name || "Không rõ",
+              categoryName: c.name,
               allocatedAmount: 0,
-              spentAmount: 0,
+              spentAmount: spentMap.get(b.categoryId) || 0, // exact dynamic spent
               remainingAmount: 0,
               usagePercentage: 0,
               status: "healthy",
@@ -436,7 +505,6 @@ export class ReportService {
           }
           const item = catMap.get(b.categoryId)!;
           item.allocatedAmount += b.allocatedAmount;
-          item.spentAmount += b.spentAmount;
         }
 
         budgetPerformance = Array.from(catMap.values()).map(item => {
@@ -490,8 +558,8 @@ export class ReportService {
     const allAccIds = topExpensesQuery.map(t => t.accountId).filter(Boolean) as string[];
     
     const [topCats, topAccs] = await Promise.all([
-      allCatIds.length > 0 ? db.select().from(categories).where(inArray(categories.id, allCatIds)) : [],
-      allAccIds.length > 0 ? db.select().from(financialAccounts).where(inArray(financialAccounts.id, allAccIds)) : [],
+      allCatIds.length > 0 ? db.select().from(categories).where(and(inArray(categories.id, allCatIds), eq(categories.userId, userId))) : [],
+      allAccIds.length > 0 ? db.select().from(financialAccounts).where(and(inArray(financialAccounts.id, allAccIds), eq(financialAccounts.userId, userId))) : [],
     ]);
 
     const topExpenses: TopExpenseItem[] = topExpensesQuery.map(t => ({

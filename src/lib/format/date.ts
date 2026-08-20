@@ -5,32 +5,61 @@
 export function formatDateVN(dateInput: Date | string | number): string {
   const date = new Date(dateInput);
   if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
 
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const year = date.getFullYear();
-
-  return `${day}/${month}/${year}`;
+export function formatDateVNSortable(dateInput: Date | string | number): string {
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(date);
+  
+  const d = parts.find(p => p.type === "day")!.value;
+  const m = parts.find(p => p.type === "month")!.value;
+  const y = parts.find(p => p.type === "year")!.value;
+  return `${y}-${m}-${d}`;
 }
 
 export function formatMonthYearVN(dateInput: Date | string | number): string {
   const date = new Date(dateInput);
   if (isNaN(date.getTime())) return "";
-
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-
-  return `Tháng ${month}, ${year}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(date);
+  
+  const m = parts.find(p => p.type === "month")!.value;
+  const y = parts.find(p => p.type === "year")!.value;
+  return `Tháng ${m}, ${y}`;
 }
 
 export function formatTimeVN(dateInput: Date | string | number): string {
   const date = new Date(dateInput);
   if (isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
 
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-
-  return `${hours}:${minutes}`;
+/**
+ * Format a reporting period, subtracting 1 millisecond from endExclusive to show the correct previous day
+ */
+export function formatReportPeriodVN(startInclusive: Date, endExclusive: Date): string {
+  const endDisplay = new Date(endExclusive.getTime() - 1);
+  return `${formatDateVN(startInclusive)} - ${formatDateVN(endDisplay)}`;
 }
 
 /**

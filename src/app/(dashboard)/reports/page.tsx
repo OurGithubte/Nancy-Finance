@@ -10,6 +10,7 @@ import { Download, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Landmark
 import { ReportService } from "@/server/services/reports";
 import { ReportPeriodType } from "@/types/reports";
 import { formatVND, formatPercent } from "@/lib/format/money";
+import { formatDateVN } from "@/lib/format/date";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -300,7 +301,7 @@ export default async function ReportsPage({
               <tbody className="divide-y divide-border-card">
                 {topExpenses.map(tx => (
                   <tr key={tx.id} className="hover:bg-surface-card/50">
-                    <td className="px-4 py-3 text-muted">{tx.date.toLocaleDateString("vi-VN")}</td>
+                    <td className="px-4 py-3 text-muted">{formatDateVN(tx.date)}</td>
                     <td className="px-4 py-3 font-medium text-slate-200">{tx.description}</td>
                     <td className="px-4 py-3 text-muted">{tx.categoryName}</td>
                     <td className="px-4 py-3 font-semibold text-expense text-right">{formatVND(tx.amount)}</td>

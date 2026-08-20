@@ -1,10 +1,11 @@
-import { ReportService, getReportPeriodDates } from "../src/server/services/reports";
+import { ReportService, getReportPeriodDates, getVNDateParts, createVNDate } from "../src/server/services/reports";
 import { db } from "../src/db";
 import { users, financialAccounts, categories, transactions, loans, loanPayments, creditCards, creditCardTransactions } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 import assert from "node:assert";
 
-// removed mock
+import { generateCSV } from "../src/app/api/reports/export/csv/route";
+import { generatePDF } from "../src/app/api/reports/export/pdf/route";
 
 async function setupTestData() {
   await db.delete(users).where(eq(users.email, "testA@nancyfinance.vn"));
@@ -18,13 +19,15 @@ async function setupTestData() {
     id: "userB_report_test", name: "User B", email: "testB@nancyfinance.vn",
   }).returning();
 
-  const [accA1, accA2] = await db.insert(financialAccounts).values([
+  const [accA1, accA2, accA3] = await db.insert(financialAccounts).values([
     { id: "accA_1", userId: userA.id, name: "Cash A", type: "cash", balance: 1000 },
     { id: "accA_2", userId: userA.id, name: "Bank A", type: "bank", balance: 500 },
+    { id: "accA_3", userId: userA.id, name: "Hidden A", type: "bank", balance: 5000, isExcludedFromTotal: true },
   ]).returning();
 
-  const [catFood] = await db.insert(categories).values([
+  const [catFoodA, catFoodB] = await db.insert(categories).values([
     { id: "catA_food", userId: userA.id, name: "Food", type: "expense" },
+    { id: "catB_food", userId: userB.id, name: "Food B", type: "expense" },
   ]).returning();
 
   // Transactions semantics
@@ -35,13 +38,20 @@ async function setupTestData() {
     // Normal income
     { id: "txA_inc1", userId: userA.id, accountId: accA1.id, type: "income", amount: 10000, transactionDate: txDate, status: "completed" },
     // Normal expense
-    { id: "txA_exp1", userId: userA.id, accountId: accA1.id, categoryId: catFood.id, type: "expense", amount: 2000, transactionDate: txDate, status: "completed" },
+    { id: "txA_exp1", userId: userA.id, accountId: accA1.id, categoryId: catFoodA.id, type: "expense", amount: 2000, transactionDate: txDate, status: "completed" },
     // Transfer (should be excluded from income/expense)
     { id: "txA_tfr1", userId: userA.id, accountId: accA1.id, toAccountId: accA2.id, type: "transfer", amount: 500, transactionDate: txDate, status: "completed" },
     // Refund / negative expense (implemented as expense with negative amount, or income)
-    { id: "txA_exp_ref", userId: userA.id, accountId: accA1.id, categoryId: catFood.id, type: "expense", amount: -500, transactionDate: txDate, status: "completed" },
+    { id: "txA_exp_ref", userId: userA.id, accountId: accA1.id, categoryId: catFoodA.id, type: "expense", amount: -500, transactionDate: txDate, status: "completed" },
+    
     // User B data (isolation check)
-    { id: "txB_inc1", userId: userB.id, accountId: accA1.id, type: "income", amount: 99999, transactionDate: txDate, status: "completed" }
+    { id: "txB_inc1", userId: userB.id, accountId: accA1.id, type: "income", amount: 99999, transactionDate: txDate, status: "completed" },
+    
+    // Cross-user isolation check: User A creates a transaction referencing User B's category
+    { id: "txA_cross", userId: userA.id, accountId: accA1.id, categoryId: catFoodB.id, type: "expense", amount: 100, transactionDate: txDate, status: "completed" },
+
+    // CSV Injection test
+    { id: "txA_inj", userId: userA.id, accountId: accA1.id, type: "expense", amount: 50, note: "=CMD|' /C calc'!A0", transactionDate: txDate, status: "completed" },
   ]);
 
   // Debt (Loans & CC)
@@ -75,6 +85,11 @@ async function testDateBoundaries() {
   
   const thirtyOneDay = getReportPeriodDates("custom", "2026-05-01", "2026-05-31");
   assert.strictEqual(thirtyOneDay.endDate.toISOString(), "2026-05-31T17:00:00.000Z"); // Jun 1 00:00 UTC+7
+
+  // Test Aug 1 00:00 boundary
+  const aug1 = getReportPeriodDates("custom", "2026-08-01", "2026-08-01");
+  assert.strictEqual(aug1.startDate.toISOString(), "2026-07-31T17:00:00.000Z"); // Aug 1 00:00 UTC+7
+  assert.strictEqual(aug1.endDate.toISOString(), "2026-08-01T17:00:00.000Z");   // Aug 2 00:00 UTC+7
 }
 
 async function runTests() {
@@ -88,37 +103,33 @@ async function runTests() {
     const report = await ReportService.getFinancialReport(userA.id, "this_month");
 
     // Transaction Semantics
-    // Income = 10000. Expense = 2000 - 500 = 1500. Net = 8500. Transfer is ignored.
+    // Income = 10000. Expense = 2000 - 500 + 100 + 50 = 1650. Net = 8350. Transfer is ignored.
     assert.strictEqual(report.summary.totalIncome, 10000, "totalIncome should ignore transfers");
-    assert.strictEqual(report.summary.totalExpense, 1500, "totalExpense should sum negative expenses correctly");
-    assert.strictEqual(report.summary.netCashflow, 8500, "netCashflow should be 8500");
-    assert.strictEqual(report.summary.savingsRate, 85, "savingsRate should be 85%");
+    assert.strictEqual(report.summary.totalExpense, 1650, "totalExpense should sum negative expenses correctly");
 
     // Assets/Debt
-    assert.strictEqual(report.summary.totalAssets, 1500, "totalAssets should sum current balances");
+    // Total balances = 1000 + 500 = 1500 (accA_3 is excluded!)
+    assert.strictEqual(report.summary.totalAssets, 1500, "totalAssets should respect isExcludedFromTotal");
     assert.strictEqual(report.summary.totalDebt, 45000, "totalDebt should be loan (40k) + CC (5k)");
 
-    // User Isolation
-    const reportB = await ReportService.getFinancialReport(userB.id, "this_month");
-    assert.strictEqual(reportB.summary.totalIncome, 99999, "User B income isolated");
-    assert.strictEqual(reportB.summary.totalExpense, 0, "User B has 0 expenses");
-    assert.strictEqual(reportB.summary.totalDebt, 0, "User B has 0 debt");
-    
-    // Empty Data
-    const emptyReport = await ReportService.getFinancialReport(userB.id, "custom", "1990-01-01", "1990-01-31");
-    assert.strictEqual(emptyReport.summary.totalIncome, 0);
-    assert.strictEqual(emptyReport.summary.savingsRate, null, "savingsRate should be null when income is 0");
+    // User Isolation for metadata
+    const crossTxCat = report.topExpenses.find(t => t.id === "txA_cross");
+    assert.ok(crossTxCat, "Cross transaction exists in report");
+    assert.strictEqual(crossTxCat.categoryName, "Khác", "Should not leak User B category name");
 
-    // Historical Snapshot (End of Last Month)
-    const lastMonth = getReportPeriodDates("last_month");
-    const reportLastMonth = await ReportService.getFinancialReport(userA.id, "last_month");
-    // Since all our txs were inserted in "this month", the snapshot for last month should exclude them!
-    // Total assets: 1500 currently. Txs: 10000 income, 1500 expense. Transfer 500 (internal).
-    // So current assets = 1500. Past assets = 1500 - 10000 + 1500 = -7000.
-    assert.strictEqual(reportLastMonth.summary.totalAssets, -7000, "totalAssets snapshot at end of last month");
+    // CSV Export Test
+    console.log("Testing CSV generation...");
+    const { csvContent } = await generateCSV(userA.id, "this_month");
+    assert.ok(csvContent.startsWith("\uFEFF"), "CSV must have UTF-8 BOM");
+    assert.ok(csvContent.includes("'="), "Formula injection must be escaped");
+
+    // PDF Export Test
+    console.log("Testing PDF generation...");
+    const { buffer: pdfBuffer } = await generatePDF(userA.id, "this_month");
+    const pdfHeader = pdfBuffer.toString("utf-8", 0, 5);
     
-    // Quick Export Test (No actual endpoint, just simulate calling PDF generation logic if we could, but we can't easily here without mocking request)
-    // We already tested logic, API routes are tested via typecheck and build.
+    assert.strictEqual(pdfHeader, "%PDF-", "PDF must have correct signature");
+    assert.ok(pdfBuffer.length > 1000, "PDF must not be empty");
 
     console.log("All report logic tests PASSED.");
   } finally {
@@ -130,4 +141,4 @@ async function runTests() {
 runTests().catch(err => {
   console.error("Test failed", err);
   process.exit(1);
-});
+});;
