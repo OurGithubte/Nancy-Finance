@@ -13,10 +13,10 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#10b981",
     icons: [
       {
-        src: "/branding/nancy-finance-mark-v3.svg",
+        src: "/branding/nancy-finance-master.svg",
         sizes: "any",
         type: "image/svg+xml",
-        purpose: "maskable",
+        purpose: "any maskable",
       },
     ],
   };
