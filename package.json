@@ -10,8 +10,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx scripts/db-migrate-safe.ts",
+    "db:migrate:safe": "tsx scripts/db-migrate-safe.ts",
+    "db:push": "tsx scripts/db-push-safe.ts",
+    "db:verify": "tsx scripts/verify-migrations.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
