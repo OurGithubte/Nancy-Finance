@@ -3,7 +3,20 @@ import { financialAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 export type CreateAccountData = typeof financialAccounts.$inferInsert;
-export type UpdateAccountData = Partial<CreateAccountData>;
+
+// Explicit whitelist: KHÔNG bao gồm id, userId, createdAt, updatedAt.
+// Đây là DTO duy nhất được phép cho update — chặn mass-assignment.
+export interface UpdateAccountData {
+  name?: string;
+  type?: "cash" | "bank" | "ewallet" | "savings" | "investment";
+  balance?: number;
+  accountNumber?: string | null;
+  bankCode?: string | null;
+  color?: string;
+  icon?: string;
+  isExcludedFromTotal?: boolean;
+  isActive?: boolean;
+}
 
 export class AccountsRepository {
   async getAccountsByUserId(userId: string) {

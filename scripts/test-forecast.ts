@@ -49,7 +49,11 @@ async function run() {
       .returning();
 
     // 1. No data at all -> insufficient data, low confidence.
-    const emptyForecast = await ForecastService.getForecast(testUser.id, 30);
+    // Truyền chung `now` cho MỌI lần gọi getForecast trong test này, để tránh
+    // ForecastService tự đọc `new Date()` ở một thời điểm khác (dù chỉ vài ms sau) —
+    // đó chính là nguyên nhân gốc khiến occurrence tại nextDueDate === now bị coi là
+    // "trước" forecast start và bị loại khỏi projection.
+    const emptyForecast = await ForecastService.getForecast(testUser.id, 30, now);
     assert.strictEqual(emptyForecast.insufficientData, true, "No history + no recurring must be insufficientData");
     assert.strictEqual(emptyForecast.confidence, "low");
     assert.strictEqual(emptyForecast.projectedIncome, 0);
@@ -71,7 +75,7 @@ async function run() {
       })
       .returning();
 
-    const withRecurring = await ForecastService.getForecast(testUser.id, 30);
+    const withRecurring = await ForecastService.getForecast(testUser.id, 30, now);
     assert.ok(withRecurring.recurringIncome >= 10_000_000, "Recurring income must be projected exactly, not estimated");
 
     // 3. A non-recurring historical expense (last 10 days) must feed the variable baseline,
@@ -112,7 +116,7 @@ async function run() {
       },
     ]);
 
-    const withHistory = await ForecastService.getForecast(testUser.id, 30);
+    const withHistory = await ForecastService.getForecast(testUser.id, 30, now);
     assert.ok(withHistory.estimatedVariableExpense > 0, "Variable expense baseline must reflect the non-recurring expense");
     assert.ok(
       withHistory.estimatedVariableIncome < 10_000_000,
@@ -121,7 +125,7 @@ async function run() {
     assert.strictEqual(withHistory.confidence !== "low", true, "Should no longer be low confidence with recurring + history");
 
     // 4. Horizons scale roughly proportionally for the variable component.
-    const forecast90 = await ForecastService.getForecast(testUser.id, 90);
+    const forecast90 = await ForecastService.getForecast(testUser.id, 90, now);
     assert.ok(
       forecast90.estimatedVariableExpense >= withHistory.estimatedVariableExpense,
       "Longer horizon must project at least as much variable expense"

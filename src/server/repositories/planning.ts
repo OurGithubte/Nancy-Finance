@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { budgets, savingGoals, savingGoalContributions, transactions, categories } from "@/db/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
+import { createVNDate } from "../services/reports";
 
 export interface CreateBudgetInput {
   userId: string;
@@ -45,8 +46,11 @@ export interface CreateContributionInput {
 export const planningRepository = {
   // --- BUDGETS ---
   async getBudgets(userId: string, month: number, year: number) {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    // Chuẩn hoá theo VN-calendar helper [startInclusive, endExclusive) thay vì
+    // new Date(year, month-1, 1) / 23:59:59.999 theo giờ server-local (phụ thuộc
+    // timezone của server/Vercel, sai lệch với "tháng" theo Asia/Ho_Chi_Minh).
+    const startDate = createVNDate(year, month, 1);
+    const endDate = month === 12 ? createVNDate(year + 1, 1, 1) : createVNDate(year, month + 1, 1);
 
     const userBudgets = await db
       .select({
@@ -75,7 +79,7 @@ export const planningRepository = {
           eq(transactions.type, "expense"),
           eq(transactions.status, "completed"),
           gte(transactions.transactionDate, startDate),
-          lte(transactions.transactionDate, endDate)
+          lt(transactions.transactionDate, endDate)
         )
       )
       .groupBy(transactions.categoryId);

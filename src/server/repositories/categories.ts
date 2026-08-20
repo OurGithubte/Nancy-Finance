@@ -3,7 +3,15 @@ import { categories } from "@/db/schema";
 import { and, eq, isNull, or } from "drizzle-orm";
 
 export type CreateCategoryData = typeof categories.$inferInsert;
-export type UpdateCategoryData = Partial<CreateCategoryData>;
+
+// Explicit whitelist: KHÔNG bao gồm id, userId, createdAt, updatedAt, isSystem.
+export interface UpdateCategoryData {
+  name?: string;
+  type?: "income" | "expense";
+  icon?: string;
+  color?: string;
+  parentId?: string | null;
+}
 
 export class CategoriesRepository {
   async getCategoriesByUserId(userId: string) {

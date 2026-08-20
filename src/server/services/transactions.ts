@@ -1,7 +1,26 @@
 import { db } from "@/db";
-import { transactions, financialAccounts } from "@/db/schema";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { transactions, financialAccounts, categories } from "@/db/schema";
+import { eq, sql, and, inArray, isNull, or } from "drizzle-orm";
 import { CreateTransactionData, UpdateTransactionData } from "../repositories/transactions";
+import { z } from "zod";
+
+const TX_TYPES = ["income", "expense", "transfer"] as const;
+const TX_STATUS = ["completed", "pending", "cancelled"] as const;
+
+// Whitelist update: KHÔNG bao giờ nhận id/userId/createdAt/recurringTransactionId/
+// recurringOccurrenceDate từ client, kể cả khi payload cố nhét thêm các field này.
+const updateTransactionSchema = z
+  .object({
+    type: z.enum(TX_TYPES).optional(),
+    accountId: z.string().min(1).optional(),
+    toAccountId: z.string().min(1).nullable().optional(),
+    categoryId: z.string().min(1).nullable().optional(),
+    amount: z.number().int().positive("Số tiền phải lớn hơn 0").optional(),
+    transactionDate: z.date().optional(),
+    note: z.string().max(1000).nullable().optional(),
+    status: z.enum(TX_STATUS).optional(),
+  })
+  .strict();
 
 async function validateAccountOwnership(tx: any, accountIds: (string | null | undefined)[], userId: string) {
   const uniqueIds = Array.from(new Set(accountIds.filter(Boolean))) as string[];
@@ -22,8 +41,23 @@ async function validateAccountOwnership(tx: any, accountIds: (string | null | un
   }
 }
 
+async function validateCategoryOwnership(tx: any, categoryId: string | null | undefined, userId: string) {
+  if (!categoryId) return;
+  const [category] = await tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.id, categoryId), or(eq(categories.userId, userId), isNull(categories.userId))))
+    .limit(1);
+  if (!category) {
+    throw new Error("Category not found or does not belong to user");
+  }
+}
+
 export class TransactionsService {
   async createTransaction(data: CreateTransactionData, externalTx?: any) {
+    if (!data.amount || data.amount <= 0) {
+      throw new Error("Amount must be greater than 0");
+    }
     if (externalTx) {
       return await this._createTx(data, externalTx);
     }
@@ -33,7 +67,7 @@ export class TransactionsService {
   }
 
   private async _createTx(data: CreateTransactionData, tx: any) {
-    // 0. Validate account ownership
+    // 0. Validate account + category ownership
     const accountsToVerify = [data.accountId];
     if (data.type === 'transfer') {
       if (!data.toAccountId) {
@@ -45,6 +79,7 @@ export class TransactionsService {
       accountsToVerify.push(data.toAccountId);
     }
     await validateAccountOwnership(tx, accountsToVerify, data.userId);
+    await validateCategoryOwnership(tx, data.categoryId, data.userId);
 
     // 1. Insert transaction
     const [newTx] = await tx.insert(transactions).values(data).returning();
@@ -126,7 +161,10 @@ export class TransactionsService {
     });
   }
 
-  async updateTransaction(id: string, userId: string, data: UpdateTransactionData) {
+  async updateTransaction(id: string, userId: string, rawData: UpdateTransactionData) {
+    // Whitelist tuyệt đối: id/userId/createdAt/recurringTransactionId/recurringOccurrenceDate
+    // bị loại bỏ ngay cả khi payload cố gửi kèm — .strict() sẽ reject request.
+    const data = updateTransactionSchema.parse(rawData);
     return await db.transaction(async (tx) => {
       // 1. Get existing
       const [existingTx] = await tx
@@ -139,7 +177,13 @@ export class TransactionsService {
         throw new Error("Transaction not found");
       }
 
-      // 1.5 Validate account ownership
+      // Giao dịch sinh ra từ recurring transaction không được sửa loại/tài khoản/số tiền
+      // qua đường update thủ công để tránh phá vỡ liên kết đối soát với recurring.
+      if (existingTx.recurringTransactionId) {
+        throw new Error("Giao dịch được sinh tự động từ giao dịch định kỳ không thể chỉnh sửa trực tiếp");
+      }
+
+      // 1.5 Validate account + category ownership
       const finalType = data.type ?? existingTx.type;
       const finalAccountId = data.accountId ?? existingTx.accountId;
       const finalToAccountId = data.toAccountId !== undefined ? data.toAccountId : existingTx.toAccountId;
@@ -160,8 +204,11 @@ export class TransactionsService {
       if (existingTx.type === 'transfer' && existingTx.toAccountId) accountsToVerify.push(existingTx.toAccountId);
       if (data.type === 'transfer' && data.toAccountId) accountsToVerify.push(data.toAccountId);
       // If it changed type to transfer, data.toAccountId needs check.
-      
+
       await validateAccountOwnership(tx, accountsToVerify, userId);
+      if (data.categoryId !== undefined) {
+        await validateCategoryOwnership(tx, data.categoryId, userId);
+      }
 
       // 2. Reverse balances (same logic as delete)
       const oldAmountStr = existingTx.amount.toString();

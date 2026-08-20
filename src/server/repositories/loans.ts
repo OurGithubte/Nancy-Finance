@@ -3,7 +3,25 @@ import { loans, loanPayments } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 export type CreateLoanData = typeof loans.$inferInsert;
-export type UpdateLoanData = Partial<CreateLoanData>;
+
+// Explicit whitelist: KHÔNG bao gồm id, userId, createdAt, updatedAt, status
+// (status do server tự tính lại dựa trên remainingAmount, không nhận trực tiếp từ client).
+export interface UpdateLoanData {
+  name?: string;
+  lenderName?: string;
+  type?: "car" | "home" | "consumer" | "business" | "student";
+  totalAmount?: number;
+  remainingAmount?: number;
+  monthlyPayment?: number;
+  interestRate?: string;
+  totalTerms?: number;
+  remainingTerms?: number;
+  startDate?: Date;
+  endDate?: Date;
+  color?: string;
+  isActive?: boolean;
+}
+
 export type CreateLoanPaymentData = typeof loanPayments.$inferInsert;
 
 export class LoansRepository {

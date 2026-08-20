@@ -3,8 +3,33 @@ import { creditCards, creditCardTransactions, creditCardPayments } from "@/db/sc
 import { and, eq } from "drizzle-orm";
 
 export type CreateCreditCardData = typeof creditCards.$inferInsert;
-export type UpdateCreditCardData = Partial<CreateCreditCardData>;
+
+// Explicit whitelist: KHÔNG bao gồm id, userId, createdAt, updatedAt, currentBalance
+// (currentBalance chỉ được thay đổi qua transaction/payment nội bộ, không update trực tiếp).
+export interface UpdateCreditCardData {
+  name?: string;
+  bankName?: string;
+  cardNetwork?: "visa" | "mastercard" | "jcb" | "amex";
+  last4Digits?: string;
+  creditLimit?: number;
+  statementDay?: number;
+  dueDay?: number;
+  color?: string;
+  isActive?: boolean;
+}
+
 export type CreateCreditCardTransactionData = typeof creditCardTransactions.$inferInsert;
+
+// Explicit whitelist cho update giao dịch thẻ: KHÔNG bao gồm id, createdAt, creditCardId.
+// creditCardId bị cấm tuyệt đối để tránh exploit "reassign giao dịch sang thẻ khác".
+export interface UpdateCreditCardTransactionData {
+  amount?: number;
+  description?: string;
+  category?: string | null;
+  transactionDate?: Date;
+  status?: "posted" | "pending" | "cancelled";
+}
+
 export type CreateCreditCardPaymentData = typeof creditCardPayments.$inferInsert;
 
 export class CreditCardsRepository {

@@ -20,26 +20,28 @@ export const recurringService = {
     return recurringRepository.getRecurringTransactions(userId);
   },
 
-  async createRecurring(data: Omit<CreateRecurringInput, "id" | "nextDueDate">) {
-    recurringSchema.parse(data);
-    
+  async createRecurring(data: Omit<CreateRecurringInput, "id" | "nextDueDate"> & { userId: string }) {
+    // QUAN TRỌNG: dùng payload đã được zod parse() trả về (chỉ chứa field whitelist),
+    // KHÔNG dùng lại `data` gốc — nếu không, mọi field lạ client nhét thêm (vd. userId,
+    // isActive, id) sẽ vẫn lọt qua vì .parse() chỉ ném lỗi validate, không tự sanitize hộ.
+    const payload = recurringSchema.parse(data);
+
     // Calculate initial next due date based on start date
     // If it's today or future, we set it to startDate.
-    const nextDueDate = data.startDate;
+    const nextDueDate = payload.startDate;
 
     return recurringRepository.createRecurring({
-      ...data,
+      ...payload,
       id: crypto.randomUUID(),
+      userId: data.userId,
       nextDueDate,
       isActive: true,
     });
   },
 
   async updateRecurring(id: string, userId: string, data: UpdateRecurringInput) {
-    updateRecurringSchema.parse(data);
-// unless user explicitly wants to reset it.
-    
-    return recurringRepository.updateRecurring(id, userId, data);
+    const payload = updateRecurringSchema.parse(data);
+    return recurringRepository.updateRecurring(id, userId, payload);
   },
 
   async toggleActive(id: string, userId: string, isActive: boolean) {

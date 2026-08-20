@@ -168,7 +168,12 @@ async function reconstructSnapshots(userId: string, boundaries: Boundary[]): Pro
     let assets = currentAssets;
     for (const tx of windowTxs) {
       if (tx.transactionDate >= boundaryExclusive) {
-        assets -= assetReverseDelta(tx);
+        // BUG (đã sửa): assetReverseDelta() trả về NGƯỢC DẤU so với tác động thật của giao
+        // dịch lên assets (income -> âm, expense -> dương, ...). Dòng cũ `assets -=
+        // assetReverseDelta(tx)` do đó CỘNG lại tác động thay vì lùi (trừ) nó đi, khiến số dư
+        // quá khứ bị tính sai (vd: thu nhập 4.000.000 sau mốc thời gian lẽ ra phải bị trừ ra
+        // khỏi số dư hiện tại để lùi về quá khứ, nhưng lại bị cộng thêm một lần nữa).
+        assets += assetReverseDelta(tx);
       }
     }
 

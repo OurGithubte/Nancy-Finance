@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { categoriesService } from "@/server/services/categories";
-import { CreateCategoryData } from "@/server/repositories/categories";
+import { CreateCategoryData, UpdateCategoryData } from "@/server/repositories/categories";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 
@@ -25,7 +25,7 @@ export async function createCategoryAction(data: Omit<CreateCategoryData, "userI
   return category;
 }
 
-export async function updateCategoryAction(id: string, data: Partial<CreateCategoryData>) {
+export async function updateCategoryAction(id: string, data: UpdateCategoryData) {
   const userId = await getUserId();
   const category = await categoriesService.updateCategory(id, userId, data);
   revalidatePath("/");

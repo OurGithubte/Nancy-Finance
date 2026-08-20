@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { creditCardsService } from "@/server/services/credit-cards";
-import { CreateCreditCardData, UpdateCreditCardData, CreateCreditCardTransactionData, CreateCreditCardPaymentData } from "@/server/repositories/credit-cards";
+import {
+  CreateCreditCardData,
+  UpdateCreditCardData,
+  CreateCreditCardTransactionData,
+  UpdateCreditCardTransactionData,
+  CreateCreditCardPaymentData,
+} from "@/server/repositories/credit-cards";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 
@@ -59,7 +65,7 @@ export async function createCreditCardPaymentAction(data: Omit<CreateCreditCardP
   return payment;
 }
 
-export async function updateCreditCardTransactionAction(id: string, data: Partial<Omit<CreateCreditCardTransactionData, "id" | "createdAt">>) {
+export async function updateCreditCardTransactionAction(id: string, data: UpdateCreditCardTransactionData) {
   const userId = await getUserId();
   const tx = await creditCardsService.updateTransaction(userId, id, data);
   revalidatePath("/");

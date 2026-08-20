@@ -4,7 +4,20 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 export type CreateTransactionData = typeof transactions.$inferInsert;
-export type UpdateTransactionData = Partial<CreateTransactionData>;
+
+// Explicit whitelist: KHÔNG bao gồm id, userId, createdAt, updatedAt,
+// recurringTransactionId, recurringOccurrenceDate (các field hệ thống dùng để
+// chống double-count giao dịch định kỳ — client tuyệt đối không được sửa).
+export interface UpdateTransactionData {
+  type?: "income" | "expense" | "transfer";
+  accountId?: string;
+  toAccountId?: string | null;
+  categoryId?: string | null;
+  amount?: number;
+  transactionDate?: Date;
+  note?: string | null;
+  status?: "completed" | "pending" | "cancelled";
+}
 
 export class TransactionsRepository {
   async getTransactions(

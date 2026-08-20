@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { accountsService } from "@/server/services/accounts";
-import { CreateAccountData } from "@/server/repositories/accounts";
+import { CreateAccountData, UpdateAccountData } from "@/server/repositories/accounts";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 
@@ -24,7 +24,7 @@ export async function createAccountAction(data: Omit<CreateAccountData, "userId"
   return account;
 }
 
-export async function updateAccountAction(id: string, data: Partial<CreateAccountData>) {
+export async function updateAccountAction(id: string, data: UpdateAccountData) {
   const userId = await getUserId();
   const account = await accountsService.updateAccount(id, userId, data);
   revalidatePath("/");

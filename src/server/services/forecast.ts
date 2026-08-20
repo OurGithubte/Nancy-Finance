@@ -41,8 +41,20 @@ const TRAILING_HISTORY_DAYS = 90;
  * This is a purely deterministic statistical projection, not a guarantee.
  */
 export class ForecastService {
-  static async getForecast(userId: string, horizonDays: ForecastHorizonDays): Promise<CashflowForecastResult> {
-    const now = new Date();
+  /**
+   * @param asOf Deterministic clock for this forecast computation. Defaults to `new Date()`
+   *   for normal callers. MUST be threaded through explicitly (not re-read via `new Date()`
+   *   anywhere else in this method) so that a single call — or the 30/60/90 fan-out in
+   *   `getForecastSummary` — always reasons about one consistent "now", and so tests can pass
+   *   a fixed clock instead of racing against wall-clock time between test setup and the
+   *   service's own `new Date()` call.
+   */
+  static async getForecast(
+    userId: string,
+    horizonDays: ForecastHorizonDays,
+    asOf: Date = new Date()
+  ): Promise<CashflowForecastResult> {
+    const now = asOf;
     const horizonEnd = new Date(now.getTime() + horizonDays * 24 * 60 * 60 * 1000);
     const historyStart = new Date(now.getTime() - TRAILING_HISTORY_DAYS * 24 * 60 * 60 * 1000);
 
@@ -55,6 +67,11 @@ export class ForecastService {
     let recurringIncome = 0;
     let recurringExpense = 0;
     for (const rt of recurring) {
+      // QUAN TRỌNG: dùng rt.nextDueDate (không phải `now`) làm mốc dưới của cửa sổ chiếu.
+      // Nếu nextDueDate đã tới hạn hoặc quá hạn (<= now, vì cron xử lý theo lịch riêng,
+      // không đồng bộ với thời điểm gọi forecast) mà vẫn lọc theo `now`, occurrence gần
+      // nhất — occurrence chắc chắn nhất — sẽ bị loại khỏi dự báo, khiến recurringIncome/
+      // recurringExpense bị tính thiếu hoặc bằng 0 một cách sai lệch.
       const occurrences = projectRecurringOccurrences(
         {
           id: rt.id,
@@ -66,7 +83,7 @@ export class ForecastService {
           nextDueDate: rt.nextDueDate,
           note: rt.note,
         },
-        now,
+        rt.nextDueDate,
         horizonEnd
       );
       const total = occurrences.length * rt.amount;
@@ -147,11 +164,16 @@ export class ForecastService {
     };
   }
 
-  static async getForecastSummary(userId: string): Promise<Record<ForecastHorizonDays, CashflowForecastResult>> {
+  static async getForecastSummary(
+    userId: string,
+    asOf: Date = new Date()
+  ): Promise<Record<ForecastHorizonDays, CashflowForecastResult>> {
+    // Capture ONE clock and pass it to all three horizons, so 30/60/90 are computed
+    // against the exact same "now" instead of three independently-read clocks.
     const [d30, d60, d90] = await Promise.all([
-      ForecastService.getForecast(userId, 30),
-      ForecastService.getForecast(userId, 60),
-      ForecastService.getForecast(userId, 90),
+      ForecastService.getForecast(userId, 30, asOf),
+      ForecastService.getForecast(userId, 60, asOf),
+      ForecastService.getForecast(userId, 90, asOf),
     ]);
     return { 30: d30, 60: d60, 90: d90 };
   }

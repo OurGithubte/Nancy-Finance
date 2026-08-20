@@ -1,0 +1,5 @@
+# Bắt buộc LF cho toàn bộ migration SQL — tránh Windows (core.autocrlf) tự chuyển
+# LF -> CRLF khi checkout, làm lệch SHA256 so với hash đã ghi vào
+# drizzle.__drizzle_migrations lúc migration được áp dụng (xem AGENTS.md mục 6.6
+# và scripts/verify-migrations.ts). KHÔNG xoá quy tắc này.
+src/db/migrations/*.sql text eol=lf
