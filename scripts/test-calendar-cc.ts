@@ -140,11 +140,52 @@ async function run() {
     const cc1Narrow = narrowEvents.filter(e => e.id.includes(cc1.id));
     assert.strictEqual(cc1Narrow.length, 0);
 
+    // 6. Test User Isolation
+    // Create User B
+    const [userB] = await db.insert(users).values({
+      id: crypto.randomUUID(),
+      name: "User B",
+      email: "userb@example.com",
+    }).returning();
+    cleanupIds.push(userB.id);
+
+    // Create Card for User B
+    const [ccB] = await db.insert(creditCards).values({
+      id: crypto.randomUUID(),
+      userId: userB.id,
+      name: "CC User B",
+      bankName: "Bank B",
+      last4Digits: "5555",
+      creditLimit: 10000000,
+      statementDay: 10,
+      dueDay: 20,
+    }).returning();
+    cleanupIds.push(ccB.id);
+
+    // Create Unpaid Statement for User B in August range
+    const ccBDueDate = new Date(2026, 7, 20); // 20/08/2026
+    await db.insert(creditCardStatements).values({
+      id: crypto.randomUUID(),
+      creditCardId: ccB.id,
+      statementDate: new Date(2026, 6, 10), // 10/07
+      dueDate: ccBDueDate,
+      totalDue: 3000000,
+      minPaymentDue: 200000,
+      isPaid: "unpaid",
+    });
+
+    // Query for User A, ensure User B's statement does not leak
+    const userAEvents = await calendarService.getEventsInRange(user.id, startAugust, endAugust);
+    const leakedEvents = userAEvents.filter(e => e.id.includes(ccB.id) || e.amount === 3000000 || e.title.includes("User B"));
+    assert.strictEqual(leakedEvents.length, 0, "Calendar leaked User B's credit card statement to User A!");
+
     console.log("✅ CALENDAR CC TESTS PASSED");
 
   } finally {
     console.log("Cleaning up...");
     for (const id of cleanupIds) {
+      // Users cascade delete their credit cards and statements
+      await db.delete(users).where(eq(users.id, id));
       await db.delete(creditCards).where(eq(creditCards.id, id));
     }
   }

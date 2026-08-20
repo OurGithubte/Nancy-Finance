@@ -16,7 +16,7 @@
     "db:verify": "tsx scripts/verify-migrations.ts",
     "db:studio": "drizzle-kit studio",
     "test": "tsx --env-file=.env.local scripts/test-dates.ts && tsx --env-file=.env.local scripts/test-cron.ts",
-    "test:integration": "tsx --env-file=.env.local scripts/test-concurrency.ts && tsx --env-file=.env.local scripts/test-calendar-cc.ts"
+    "test:integration": "tsx --env-file=.env.local scripts/test-concurrency.ts && tsx --env-file=.env.local scripts/test-calendar-cc.ts && tsx --env-file=.env.local scripts/test-insights.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

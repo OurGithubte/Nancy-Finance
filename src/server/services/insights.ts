@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { budgets, creditCards, recurringTransactions, financialAccounts, financialEvents, loans, loanSchedules, creditCardStatements } from "@/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { projectRecurringOccurrences, safeDayOfMonth } from "@/lib/format/date";
+import { projectRecurringOccurrences } from "@/lib/format/date";
 
 export type SmartInsight = {
   id: string;
@@ -53,25 +53,38 @@ export const insightsService = {
       }
     }
 
-    // 2. Credit Card dues (<= 7 days)
-    const cards = await db.select().from(creditCards).where(eq(creditCards.userId, userId));
-    for (const card of cards) {
-      let dueMonth = now.getMonth();
-      let dueYear = now.getFullYear();
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-      if (card.dueDay < now.getDate()) {
-        dueMonth++;
-      }
+    // 2. Credit Card dues (<= 7 days) & Cashflow Unpaid Statements
+    const unpaidStatements = await db
+      .select({ 
+        id: creditCardStatements.id,
+        cardId: creditCards.id,
+        cardName: creditCards.name,
+        totalDue: creditCardStatements.totalDue,
+        dueDate: creditCardStatements.dueDate
+      })
+      .from(creditCardStatements)
+      .innerJoin(creditCards, eq(creditCards.id, creditCardStatements.creditCardId))
+      .where(
+        and(
+          eq(creditCards.userId, userId),
+          sql`${creditCardStatements.isPaid} != 'paid'`,
+          gte(creditCardStatements.dueDate, now),
+          lte(creditCardStatements.dueDate, sevenDaysFromNow)
+        )
+      );
 
-      const dueDate = safeDayOfMonth(dueYear, dueMonth, card.dueDay);
-      const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-
-      if (daysUntilDue <= 7 && daysUntilDue >= 0 && card.creditLimit > 0) {
+    for (const stmt of unpaidStatements) {
+      if (stmt.totalDue > 0) {
+        const daysUntilDue = Math.ceil((stmt.dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
         insights.push({
-          id: `cc_due_${card.id}`,
+          id: `cc_due_${stmt.id}`,
           severity: "warning",
-          title: `Sắp tới hạn thẻ ${card.name}`,
-          description: `Còn ${daysUntilDue} ngày nữa là tới hạn thanh toán thẻ.`,
+          title: `Sắp tới hạn thẻ ${stmt.cardName}`,
+          description: `Còn ${daysUntilDue} ngày nữa đến hạn thanh toán ${stmt.totalDue.toLocaleString("vi-VN")} ₫.`,
+          amount: stmt.totalDue,
           actionLabel: "Xem thẻ tín dụng",
           actionHref: "/credit-cards"
         });
@@ -81,9 +94,6 @@ export const insightsService = {
     // 3. Cash-flow risk (predict next 7 days based on recurring + events, compare to available balance)
     const accounts = await db.select().from(financialAccounts).where(eq(financialAccounts.userId, userId));
     const totalBalance = accounts.reduce((acc, a) => acc + a.balance, 0);
-    
-    const sevenDaysFromNow = new Date(now);
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
     
     let projectedExpense = 0;
     let projectedIncome = 0;
@@ -105,8 +115,7 @@ export const insightsService = {
       }
     }
 
-    // 3b. Financial Events (Rule: We ignore loan_due and cc_due here to prevent double counting, 
-    // because loanSchedules and creditCardStatements are the authoritative sources)
+    // 3b. Financial Events
     const upcomingEvents = await db
       .select()
       .from(financialEvents)
@@ -147,20 +156,7 @@ export const insightsService = {
       projectedExpense += s.totalDue;
     }
 
-    // 3d. Unpaid Credit Card Statements
-    const unpaidStatements = await db
-      .select({ totalDue: creditCardStatements.totalDue })
-      .from(creditCardStatements)
-      .innerJoin(creditCards, eq(creditCards.id, creditCardStatements.creditCardId))
-      .where(
-        and(
-          eq(creditCards.userId, userId),
-          sql`${creditCardStatements.isPaid} != 'paid'`,
-          gte(creditCardStatements.dueDate, now),
-          lte(creditCardStatements.dueDate, sevenDaysFromNow)
-        )
-      );
-
+    // Add statements to projectedExpense
     for (const stmt of unpaidStatements) {
       projectedExpense += stmt.totalDue;
     }

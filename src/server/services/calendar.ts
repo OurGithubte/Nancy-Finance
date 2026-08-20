@@ -65,23 +65,22 @@ export const calendarService = {
       .from(creditCards)
       .where(eq(creditCards.userId, userId));
 
-    const cardIds = cards.map((c) => c.id);
-    let statements: any[] = [];
-    if (cardIds.length > 0) {
-      statements = await db
-        .select()
-        .from(creditCardStatements)
-        // Optimization: just fetch all statements for user's cards and match in memory
-        // if user has many statements, we should filter by date, but this is fine for now
-        // since we only have a few cards
-        .where(
-          and(
-            gte(creditCardStatements.dueDate, startDate),
-            lte(creditCardStatements.dueDate, endDate)
-          )
-        );
-      statements = statements.filter((s) => cardIds.includes(s.creditCardId));
-    }
+    const statements = await db
+      .select({
+        creditCardId: creditCardStatements.creditCardId,
+        dueDate: creditCardStatements.dueDate,
+        totalDue: creditCardStatements.totalDue,
+        isPaid: creditCardStatements.isPaid
+      })
+      .from(creditCardStatements)
+      .innerJoin(creditCards, eq(creditCards.id, creditCardStatements.creditCardId))
+      .where(
+        and(
+          eq(creditCards.userId, userId),
+          gte(creditCardStatements.dueDate, startDate),
+          lte(creditCardStatements.dueDate, endDate)
+        )
+      );
       
     for (const card of cards) {
       const scanStart = new Date(startDate);
@@ -126,11 +125,7 @@ export const calendarService = {
             id: `cc_due_${card.id}_${dueDate.getTime()}`,
             date: dueDate,
             title: `Hạn thanh toán thẻ ${card.name}`,
-            // We use the actual unpaid statement totalDue if it exists. 
-            // If it's already paid, amount is 0 or null? If paid, totalDue is still there, but status is 'paid'.
-            // For now, if we have a statement, we show totalDue (or minPaymentDue). If not, null.
-            // Limitation: if statement isn't generated yet, it shows null.
-            amount: matchingStmt ? matchingStmt.totalDue : null, 
+            amount: matchingStmt ? matchingStmt.totalDue : null,
             type: "payment_due",
             status: matchingStmt && matchingStmt.isPaid === 'paid' ? "completed" : "urgent",
           });

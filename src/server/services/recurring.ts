@@ -37,9 +37,7 @@ export const recurringService = {
 
   async updateRecurring(id: string, userId: string, data: UpdateRecurringInput) {
     updateRecurringSchema.parse(data);
-    
-    // Re-calculate next due date if start date changed and it makes sense, but we skip it for now 
-    // unless user explicitly wants to reset it.
+// unless user explicitly wants to reset it.
     
     return recurringRepository.updateRecurring(id, userId, data);
   },
