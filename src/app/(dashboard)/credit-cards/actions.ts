@@ -58,3 +58,18 @@ export async function createCreditCardPaymentAction(data: Omit<CreateCreditCardP
   revalidatePath("/credit-cards");
   return payment;
 }
+
+export async function updateCreditCardTransactionAction(id: string, data: Partial<Omit<CreateCreditCardTransactionData, "id" | "createdAt">>) {
+  const userId = await getUserId();
+  const tx = await creditCardsService.updateTransaction(userId, id, data);
+  revalidatePath("/");
+  revalidatePath("/credit-cards");
+  return tx;
+}
+
+export async function deleteCreditCardTransactionAction(id: string) {
+  const userId = await getUserId();
+  await creditCardsService.deleteTransaction(userId, id);
+  revalidatePath("/");
+  revalidatePath("/credit-cards");
+}

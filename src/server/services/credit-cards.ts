@@ -1,7 +1,9 @@
-import { db } from "@/db";
+﻿import { db } from "@/db";
 import { creditCards, creditCardTransactions, creditCardPayments, financialAccounts, transactions } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { CreateCreditCardData, UpdateCreditCardData, CreateCreditCardTransactionData, CreateCreditCardPaymentData } from "../repositories/credit-cards";
+
+export type UpdateCreditCardTransactionData = Partial<CreateCreditCardTransactionData>;
 
 export class CreditCardsService {
   async createCreditCard(data: CreateCreditCardData) {
@@ -29,20 +31,21 @@ export class CreditCardsService {
 
   async createTransaction(userId: string, data: CreateCreditCardTransactionData) {
     return await db.transaction(async (tx) => {
-      // Validate card ownership
+      if (data.amount <= 0) throw new Error("Amount must be greater than 0");
+
       const [card] = await tx
         .select()
         .from(creditCards)
         .where(and(eq(creditCards.id, data.creditCardId), eq(creditCards.userId, userId)));
       
-      if (!card) {
-        throw new Error("Credit card not found or access denied");
+      if (!card) throw new Error("Credit card not found or access denied");
+
+      if (card.currentBalance + data.amount > card.creditLimit) {
+        throw new Error("Transaction exceeds credit limit");
       }
 
-      // Insert tx
       const [newTx] = await tx.insert(creditCardTransactions).values(data).returning();
 
-      // Increase currentBalance of credit card
       const amountStr = data.amount.toString();
       await tx
         .update(creditCards)
@@ -53,9 +56,78 @@ export class CreditCardsService {
     });
   }
 
+  async updateTransaction(userId: string, txId: string, data: UpdateCreditCardTransactionData) {
+    return await db.transaction(async (tx) => {
+      const [oldTx] = await tx
+        .select()
+        .from(creditCardTransactions)
+        .where(eq(creditCardTransactions.id, txId));
+      
+      if (!oldTx) throw new Error("Transaction not found");
+
+      const [card] = await tx
+        .select()
+        .from(creditCards)
+        .where(and(eq(creditCards.id, oldTx.creditCardId), eq(creditCards.userId, userId)));
+      
+      if (!card) throw new Error("Credit card not found or access denied");
+
+      const newAmount = data.amount !== undefined ? data.amount : oldTx.amount;
+      if (newAmount <= 0) throw new Error("Amount must be greater than 0");
+
+      const newBalance = card.currentBalance - oldTx.amount + newAmount;
+      if (newBalance > card.creditLimit) {
+        throw new Error("Transaction exceeds credit limit");
+      }
+
+      const [updatedTx] = await tx
+        .update(creditCardTransactions)
+        .set(data)
+        .where(eq(creditCardTransactions.id, txId))
+        .returning();
+
+      const balanceDiffStr = (newAmount - oldTx.amount).toString();
+      await tx
+        .update(creditCards)
+        .set({ currentBalance: sql`${creditCards.currentBalance} + ${balanceDiffStr}::bigint` })
+        .where(eq(creditCards.id, oldTx.creditCardId));
+
+      return updatedTx;
+    });
+  }
+
+  async deleteTransaction(userId: string, txId: string) {
+    return await db.transaction(async (tx) => {
+      const [oldTx] = await tx
+        .select()
+        .from(creditCardTransactions)
+        .where(eq(creditCardTransactions.id, txId));
+      
+      if (!oldTx) throw new Error("Transaction not found");
+
+      const [card] = await tx
+        .select()
+        .from(creditCards)
+        .where(and(eq(creditCards.id, oldTx.creditCardId), eq(creditCards.userId, userId)));
+      
+      if (!card) throw new Error("Credit card not found or access denied");
+
+      const amountStr = oldTx.amount.toString();
+      await tx
+        .update(creditCards)
+        .set({ currentBalance: sql`${creditCards.currentBalance} - ${amountStr}::bigint` })
+        .where(eq(creditCards.id, oldTx.creditCardId));
+
+      await tx.delete(creditCardTransactions).where(eq(creditCardTransactions.id, txId));
+      
+      return oldTx;
+    });
+  }
+
   async createPayment(userId: string, data: CreateCreditCardPaymentData & { accountId: string }) {
     return await db.transaction(async (tx) => {
-      // Validate card ownership
+      if (data.amount <= 0) throw new Error("Payment amount must be greater than 0");
+
       const [card] = await tx
         .select()
         .from(creditCards)
@@ -63,7 +135,10 @@ export class CreditCardsService {
       
       if (!card) throw new Error("Credit card not found");
 
-      // Validate account ownership
+      if (data.amount > card.currentBalance) {
+        throw new Error("Payment amount cannot exceed current balance");
+      }
+
       const [account] = await tx
         .select()
         .from(financialAccounts)
@@ -71,37 +146,35 @@ export class CreditCardsService {
         
       if (!account) throw new Error("Account not found");
 
-      // 1. Create a global transaction for the account deduction
       const [_globalTx] = await tx.insert(transactions).values({
         id: crypto.randomUUID(),
         userId,
         accountId: data.accountId,
-        type: "expense", // Treat as expense or transfer? 'expense' works for cash outflow
+        type: "transfer",
         amount: data.amount,
         transactionDate: data.paymentDate,
         note: data.note || `Thanh toán dư nợ thẻ ${card.name}`,
         status: "completed"
       }).returning();
 
-      // 2. Insert payment record
       const [payment] = await tx.insert(creditCardPayments).values({
         ...data,
         fromAccountId: data.accountId,
       }).returning();
 
-      // 3. Update balances
       const amountStr = data.amount.toString();
       
-      // Decrease financial account balance
       await tx
         .update(financialAccounts)
         .set({ balance: sql`${financialAccounts.balance} - ${amountStr}::bigint` })
         .where(eq(financialAccounts.id, data.accountId));
 
-      // Decrease credit card current balance (debt)
+      const newBalance = card.currentBalance - data.amount;
+      const safeBalance = newBalance < 0 ? 0 : newBalance;
+      
       await tx
         .update(creditCards)
-        .set({ currentBalance: sql`${creditCards.currentBalance} - ${amountStr}::bigint` })
+        .set({ currentBalance: safeBalance })
         .where(eq(creditCards.id, data.creditCardId));
 
       return payment;
