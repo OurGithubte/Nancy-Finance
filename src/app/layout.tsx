@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const brandIcon = "/branding/nancy-finance-mark-v3.svg";
+const brandIcon = "/branding/nancy-finance-master.svg";
 
 export const metadata: Metadata = {
   title: "Nancy Finance - Quản lý tài chính cá nhân",
@@ -18,6 +18,7 @@ export const metadata: Metadata = {
       },
     ],
     shortcut: brandIcon,
+    apple: brandIcon,
   },
   appleWebApp: {
     capable: true,
