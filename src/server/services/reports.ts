@@ -6,7 +6,10 @@ import {
   budgets,
   savingGoals,
   loans,
+  loanPayments,
   creditCards,
+  creditCardTransactions,
+  creditCardPayments,
 } from "@/db/schema";
 import { and, eq, gte, lt, desc, sql, sum, inArray, or } from "drizzle-orm";
 import {
@@ -23,25 +26,34 @@ import {
 } from "@/types/reports";
 
 /**
- * Helper to parse dates strictly.
+ * Build an exact Date object for a given YYYY-MM-DD in Asia/Ho_Chi_Minh (+07:00)
  */
+function createVNDate(year: number, month: number, day: number): Date {
+  const y = year.toString().padStart(4, "0");
+  const m = month.toString().padStart(2, "0");
+  const d = day.toString().padStart(2, "0");
+  // ISO string with +07:00 offset ensures exact boundary
+  return new Date(`${y}-${m}-${d}T00:00:00+07:00`);
+}
+
 function parseCustomDate(dateStr: string | null, isEnd: boolean = false): Date | null {
   if (!dateStr) return null;
-  // Parse YYYY-MM-DD strictly as local time to avoid timezone shifts
   const parts = dateStr.split("-");
   if (parts.length === 3) {
     const y = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1;
+    const m = parseInt(parts[1], 10);
     const d = parseInt(parts[2], 10);
-    const date = new Date(y, m, d, 0, 0, 0, 0);
-    if (isNaN(date.getTime())) return null;
+    
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
     
     if (isEnd) {
-      date.setHours(23, 59, 59, 999);
-      const exclusiveDate = new Date(date.getTime() + 1);
-      return exclusiveDate;
+      // For exclusive end date, we add 1 day to the parsed date
+      // Javascript Date will correctly wrap months/years if we add to getDate()
+      const temp = new Date(Date.UTC(y, m - 1, d));
+      temp.setUTCDate(temp.getUTCDate() + 1);
+      return createVNDate(temp.getUTCFullYear(), temp.getUTCMonth() + 1, temp.getUTCDate());
     }
-    return date;
+    return createVNDate(y, m, d);
   }
   
   const d = new Date(dateStr);
@@ -57,7 +69,10 @@ export function getReportPeriodDates(
   customFrom?: string | null,
   customTo?: string | null
 ): { startDate: Date; endDate: Date } {
-  const now = new Date();
+  // Use current time in VN to determine "now"
+  const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const currYear = nowVN.getFullYear();
+  const currMonth = nowVN.getMonth() + 1; // 1-12
   
   if (type === "custom" && customFrom && customTo) {
     const start = parseCustomDate(customFrom);
@@ -68,21 +83,26 @@ export function getReportPeriodDates(
   }
 
   // Fallback or default types based on current date
-  let startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  let endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+  let startDate = createVNDate(currYear, currMonth, 1);
+  // End of month is 1st of next month
+  let endDate = currMonth === 12 ? createVNDate(currYear + 1, 1, 1) : createVNDate(currYear, currMonth + 1, 1);
 
   if (type === "last_month") {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    startDate = currMonth === 1 ? createVNDate(currYear - 1, 12, 1) : createVNDate(currYear, currMonth - 1, 1);
+    endDate = createVNDate(currYear, currMonth, 1);
   } else if (type === "last_3_months") {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+    // 3 months including this month or 3 previous? "3 tháng gần nhất" usually means last 3 months up to now.
+    // We'll define it as (currMonth - 2) to (currMonth + 1) -> 3 full months
+    const startTemp = new Date(Date.UTC(currYear, currMonth - 1 - 2, 1));
+    startDate = createVNDate(startTemp.getUTCFullYear(), startTemp.getUTCMonth() + 1, 1);
+    endDate = currMonth === 12 ? createVNDate(currYear + 1, 1, 1) : createVNDate(currYear, currMonth + 1, 1);
   } else if (type === "last_6_months") {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+    const startTemp = new Date(Date.UTC(currYear, currMonth - 1 - 5, 1));
+    startDate = createVNDate(startTemp.getUTCFullYear(), startTemp.getUTCMonth() + 1, 1);
+    endDate = currMonth === 12 ? createVNDate(currYear + 1, 1, 1) : createVNDate(currYear, currMonth + 1, 1);
   } else if (type === "this_year") {
-    startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
+    startDate = createVNDate(currYear, 1, 1);
+    endDate = createVNDate(currYear + 1, 1, 1);
   }
 
   return { startDate, endDate };
@@ -136,25 +156,125 @@ export class ReportService {
     const netCashflow = totalIncome - totalExpense;
     const savingsRate = calculateSavingsRate(totalIncome, totalExpense);
 
-    // 3. Current Assets (sum of financial accounts)
+    // 3. Current Assets Snapshot at endDate
     const [assetsResult] = await db
       .select({ total: sum(financialAccounts.balance) })
       .from(financialAccounts)
       .where(eq(financialAccounts.userId, userId));
-    const totalAssets = Number(assetsResult?.total || 0);
+    let totalAssets = Number(assetsResult?.total || 0);
 
-    // 4. Current Debt (sum of loan remaining amounts + credit card balances)
-    const [loansResult] = await db
-      .select({ total: sum(loans.remainingAmount) })
+    // Adjust assets back to endDate if endDate is in the past
+    const now = new Date();
+    if (endDate < now) {
+      const futureTxs = await db
+        .select({ type: transactions.type, amount: transactions.amount, toAccountId: transactions.toAccountId })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, userId),
+            eq(transactions.status, "completed"),
+            gte(transactions.transactionDate, endDate)
+          )
+        );
+        
+      for (const tx of futureTxs) {
+        if (tx.type === "income") totalAssets -= tx.amount;
+        if (tx.type === "expense") totalAssets += tx.amount;
+        if (tx.type === "transfer") {
+          totalAssets += tx.amount; // money left an account
+          if (tx.toAccountId) {
+            totalAssets -= tx.amount; // money entered an account
+          }
+        }
+      }
+    }
+
+    // 4. Current Debt Snapshot at endDate
+    const userLoans = await db
+      .select()
       .from(loans)
-      .where(and(eq(loans.userId, userId), eq(loans.isActive, true)));
+      .where(and(eq(loans.userId, userId), lt(loans.startDate, endDate))); // only loans started before endDate
+      
+    let totalDebt = 0;
+    const debts: DebtSummaryItem[] = [];
     
-    const [ccResult] = await db
-      .select({ total: sum(creditCards.currentBalance) })
+    if (userLoans.length > 0) {
+      const loanIds = userLoans.map(l => l.id);
+      const futureLoanPayments = endDate < now ? await db
+        .select({ loanId: loanPayments.loanId, amount: loanPayments.amount })
+        .from(loanPayments)
+        .where(and(inArray(loanPayments.loanId, loanIds), gte(loanPayments.paymentDate, endDate))) : [];
+        
+      for (const loan of userLoans) {
+        let pastRemaining = loan.remainingAmount;
+        if (endDate < now) {
+          const futurePaid = futureLoanPayments.filter(p => p.loanId === loan.id).reduce((sum, p) => sum + p.amount, 0);
+          pastRemaining += futurePaid;
+        }
+        totalDebt += pastRemaining;
+        
+        if (loan.isActive || pastRemaining > 0) {
+          debts.push({
+            id: loan.id,
+            type: "loan",
+            name: loan.name,
+            lenderOrBank: loan.lenderName,
+            originalAmountOrLimit: loan.totalAmount,
+            remainingOrCurrentBalance: pastRemaining,
+            monthlyPaymentOrMinDue: loan.monthlyPayment,
+            paidPercentage: loan.totalAmount > 0 ? ((loan.totalAmount - pastRemaining) / loan.totalAmount) * 100 : 0,
+            dueDate: null, 
+            status: pastRemaining > 0 ? "active" : "settled",
+          });
+        }
+      }
+    }
+    
+    const userCards = await db
+      .select()
       .from(creditCards)
-      .where(and(eq(creditCards.userId, userId), eq(creditCards.isActive, true)));
-    
-    const totalDebt = Number(loansResult?.total || 0) + Number(ccResult?.total || 0);
+      .where(and(eq(creditCards.userId, userId), lt(creditCards.createdAt, endDate)));
+      
+    if (userCards.length > 0) {
+      const cardIds = userCards.map(c => c.id);
+      const futureCcTxs = endDate < now ? await db
+        .select({ cardId: creditCardTransactions.creditCardId, amount: creditCardTransactions.amount })
+        .from(creditCardTransactions)
+        .where(and(
+          inArray(creditCardTransactions.creditCardId, cardIds), 
+          gte(creditCardTransactions.transactionDate, endDate),
+          eq(creditCardTransactions.status, "posted")
+        )) : [];
+        
+      const futureCcPayments = endDate < now ? await db
+        .select({ cardId: creditCardPayments.creditCardId, amount: creditCardPayments.amount })
+        .from(creditCardPayments)
+        .where(and(inArray(creditCardPayments.creditCardId, cardIds), gte(creditCardPayments.paymentDate, endDate))) : [];
+        
+      for (const card of userCards) {
+        let pastBalance = card.currentBalance;
+        if (endDate < now) {
+          const futureSpent = futureCcTxs.filter(t => t.cardId === card.id).reduce((sum, t) => sum + t.amount, 0);
+          const futurePaid = futureCcPayments.filter(p => p.cardId === card.id).reduce((sum, p) => sum + p.amount, 0);
+          pastBalance = pastBalance - futureSpent + futurePaid;
+        }
+        totalDebt += pastBalance;
+        
+        if (card.isActive || pastBalance > 0) {
+          debts.push({
+            id: card.id,
+            type: "credit_card",
+            name: card.name,
+            lenderOrBank: card.bankName,
+            originalAmountOrLimit: card.creditLimit,
+            remainingOrCurrentBalance: pastBalance,
+            monthlyPaymentOrMinDue: 0,
+            dueDate: null, 
+            status: pastBalance > 0 ? "active" : "good",
+          });
+        }
+      }
+    }
 
     const summary: KpiSummary = {
       totalIncome,
@@ -349,46 +469,7 @@ export class ReportService {
       };
     });
 
-    // 10. Debts
-    const userLoans = await db
-      .select()
-      .from(loans)
-      .where(and(eq(loans.userId, userId), eq(loans.isActive, true)));
-    
-    const userCards = await db
-      .select()
-      .from(creditCards)
-      .where(and(eq(creditCards.userId, userId), eq(creditCards.isActive, true)));
-    
-    const debts: DebtSummaryItem[] = [];
-    userLoans.forEach(l => {
-      debts.push({
-        id: l.id,
-        type: "loan",
-        name: l.name,
-        lenderOrBank: l.lenderName,
-        originalAmountOrLimit: l.totalAmount,
-        remainingOrCurrentBalance: l.remainingAmount,
-        monthlyPaymentOrMinDue: l.monthlyPayment,
-        paidPercentage: l.totalAmount > 0 ? ((l.totalAmount - l.remainingAmount) / l.totalAmount) * 100 : 0,
-        dueDate: null, // Could fetch next schedule here if needed
-        status: l.status,
-      });
-    });
-
-    userCards.forEach(c => {
-      debts.push({
-        id: c.id,
-        type: "credit_card",
-        name: c.name,
-        lenderOrBank: c.bankName,
-        originalAmountOrLimit: c.creditLimit,
-        remainingOrCurrentBalance: c.currentBalance,
-        monthlyPaymentOrMinDue: 0, // Would need to join statements to get actual min due
-        dueDate: null, 
-        status: c.currentBalance > 0 ? "active" : "good",
-      });
-    });
+    // 10. Debts were already built in step 4.
 
     // 11. Top Expenses
     const topExpensesQuery = await db

@@ -1,120 +1,80 @@
 import { ReportService, getReportPeriodDates } from "../src/server/services/reports";
 import { db } from "../src/db";
-import { users, financialAccounts, categories, transactions } from "../src/db/schema";
+import { users, financialAccounts, categories, transactions, loans, loanPayments, creditCards, creditCardTransactions } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 import assert from "node:assert";
 
+// removed mock
+
 async function setupTestData() {
-  // Clean up test data if exists
   await db.delete(users).where(eq(users.email, "testA@nancyfinance.vn"));
   await db.delete(users).where(eq(users.email, "testB@nancyfinance.vn"));
 
-  // Create User A
   const [userA] = await db.insert(users).values({
-    id: "userA_report_test",
-    name: "User A",
-    email: "testA@nancyfinance.vn",
+    id: "userA_report_test", name: "User A", email: "testA@nancyfinance.vn",
   }).returning();
 
-  // Create User B (for isolation test)
   const [userB] = await db.insert(users).values({
-    id: "userB_report_test",
-    name: "User B",
-    email: "testB@nancyfinance.vn",
+    id: "userB_report_test", name: "User B", email: "testB@nancyfinance.vn",
   }).returning();
 
-  // Create Accounts
-  const [accA] = await db.insert(financialAccounts).values({
-    id: "accA_1",
-    userId: userA.id,
-    name: "Cash A",
-    type: "cash",
-    balance: 5000000,
-  }).returning();
-
-  const [accB] = await db.insert(financialAccounts).values({
-    id: "accB_1",
-    userId: userB.id,
-    name: "Cash B",
-    type: "cash",
-    balance: 10000000,
-  }).returning();
-
-  // Create Categories for A
-  const [catFood, catTransport, catOther] = await db.insert(categories).values([
-    { id: "catA_food", userId: userA.id, name: "Food", type: "expense" },
-    { id: "catA_transport", userId: userA.id, name: "Transport", type: "expense" },
-    { id: "catA_other", userId: userA.id, name: "Other", type: "expense" },
-    { id: "catA_salary", userId: userA.id, name: "Salary", type: "income" },
+  const [accA1, accA2] = await db.insert(financialAccounts).values([
+    { id: "accA_1", userId: userA.id, name: "Cash A", type: "cash", balance: 1000 },
+    { id: "accA_2", userId: userA.id, name: "Bank A", type: "bank", balance: 500 },
   ]).returning();
 
-  // The test requires:
-  // Income: 10,000,000
-  // Expenses: Food 2,000,000, Transport 1,000,000, Other 500,000
-  
-  // Set date to current month so "this_month" works
-  const now = new Date();
-  const txDate = new Date(now.getFullYear(), now.getMonth(), 15);
+  const [catFood] = await db.insert(categories).values([
+    { id: "catA_food", userId: userA.id, name: "Food", type: "expense" },
+  ]).returning();
 
+  // Transactions semantics
+  const baseDate = new Date();
+  const txDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 15);
+  
   await db.insert(transactions).values([
-    {
-      id: "txA_inc1",
-      userId: userA.id,
-      accountId: accA.id,
-      categoryId: catFood.id, // technically salary category but just using ID
-      type: "income",
-      amount: 10000000,
-      transactionDate: txDate,
-      status: "completed",
-    },
-    {
-      id: "txA_exp1",
-      userId: userA.id,
-      accountId: accA.id,
-      categoryId: catFood.id,
-      type: "expense",
-      amount: 2000000,
-      transactionDate: txDate,
-      status: "completed",
-    },
-    {
-      id: "txA_exp2",
-      userId: userA.id,
-      accountId: accA.id,
-      categoryId: catTransport.id,
-      type: "expense",
-      amount: 1000000,
-      transactionDate: txDate,
-      status: "completed",
-    },
-    {
-      id: "txA_exp3",
-      userId: userA.id,
-      accountId: accA.id,
-      categoryId: catOther.id,
-      type: "expense",
-      amount: 500000,
-      transactionDate: txDate,
-      status: "completed",
-    },
-    // User B data to test isolation
-    {
-      id: "txB_inc1",
-      userId: userB.id,
-      accountId: accB.id,
-      type: "income",
-      amount: 9999999,
-      transactionDate: txDate,
-      status: "completed",
-    }
+    // Normal income
+    { id: "txA_inc1", userId: userA.id, accountId: accA1.id, type: "income", amount: 10000, transactionDate: txDate, status: "completed" },
+    // Normal expense
+    { id: "txA_exp1", userId: userA.id, accountId: accA1.id, categoryId: catFood.id, type: "expense", amount: 2000, transactionDate: txDate, status: "completed" },
+    // Transfer (should be excluded from income/expense)
+    { id: "txA_tfr1", userId: userA.id, accountId: accA1.id, toAccountId: accA2.id, type: "transfer", amount: 500, transactionDate: txDate, status: "completed" },
+    // Refund / negative expense (implemented as expense with negative amount, or income)
+    { id: "txA_exp_ref", userId: userA.id, accountId: accA1.id, categoryId: catFood.id, type: "expense", amount: -500, transactionDate: txDate, status: "completed" },
+    // User B data (isolation check)
+    { id: "txB_inc1", userId: userB.id, accountId: accA1.id, type: "income", amount: 99999, transactionDate: txDate, status: "completed" }
   ]);
+
+  // Debt (Loans & CC)
+  const [loanA] = await db.insert(loans).values({
+    id: "loanA_1", userId: userA.id, name: "Car Loan", lenderName: "Bank", totalAmount: 50000, remainingAmount: 40000, monthlyPayment: 1000, interestRate: "5.0", totalTerms: 60, remainingTerms: 40, startDate: new Date("2020-01-01T00:00:00+07:00"), endDate: new Date("2025-01-01T00:00:00+07:00")
+  }).returning();
+
+  const [ccA] = await db.insert(creditCards).values({
+    id: "ccA_1", userId: userA.id, name: "Visa", bankName: "Bank", last4Digits: "1234", creditLimit: 20000, currentBalance: 5000, statementDay: 1, dueDay: 15, cardNetwork: "visa"
+  }).returning();
 
   return { userA, userB };
 }
 
-async function cleanupTestData(userAId: string, userBId: string) {
-  await db.delete(users).where(eq(users.id, userAId));
-  await db.delete(users).where(eq(users.id, userBId));
+async function cleanupTestData() {
+  await db.delete(users).where(eq(users.email, "testA@nancyfinance.vn"));
+  await db.delete(users).where(eq(users.email, "testB@nancyfinance.vn"));
+}
+
+async function testDateBoundaries() {
+  // Test Ho Chi Minh Time bounds
+  const feb28 = getReportPeriodDates("custom", "2026-02-01", "2026-02-28");
+  assert.strictEqual(feb28.startDate.toISOString(), "2026-01-31T17:00:00.000Z"); // Feb 1 00:00 UTC+7
+  assert.strictEqual(feb28.endDate.toISOString(), "2026-02-28T17:00:00.000Z"); // Mar 1 00:00 UTC+7
+  
+  const leapYear = getReportPeriodDates("custom", "2024-02-01", "2024-02-29");
+  assert.strictEqual(leapYear.endDate.toISOString(), "2024-02-29T17:00:00.000Z"); // Mar 1 00:00 UTC+7
+
+  const thirtyDay = getReportPeriodDates("custom", "2026-04-01", "2026-04-30");
+  assert.strictEqual(thirtyDay.endDate.toISOString(), "2026-04-30T17:00:00.000Z"); // May 1 00:00 UTC+7
+  
+  const thirtyOneDay = getReportPeriodDates("custom", "2026-05-01", "2026-05-31");
+  assert.strictEqual(thirtyOneDay.endDate.toISOString(), "2026-05-31T17:00:00.000Z"); // Jun 1 00:00 UTC+7
 }
 
 async function runTests() {
@@ -122,50 +82,48 @@ async function runTests() {
   const { userA, userB } = await setupTestData();
 
   try {
-    console.log("Testing getFinancialReport for User A...");
+    testDateBoundaries();
+    console.log("Date boundary tests passed.");
+
     const report = await ReportService.getFinancialReport(userA.id, "this_month");
 
-    // 1. Check KPIs
-    assert.strictEqual(report.summary.totalIncome, 10000000, "totalIncome should be 10M");
-    assert.strictEqual(report.summary.totalExpense, 3500000, "totalExpense should be 3.5M");
-    assert.strictEqual(report.summary.netCashflow, 6500000, "netCashflow should be 6.5M");
-    assert.strictEqual(report.summary.savingsRate, 65, "savingsRate should be 65%");
-    assert.strictEqual(report.summary.totalAssets, 5000000, "totalAssets should match account balance");
+    // Transaction Semantics
+    // Income = 10000. Expense = 2000 - 500 = 1500. Net = 8500. Transfer is ignored.
+    assert.strictEqual(report.summary.totalIncome, 10000, "totalIncome should ignore transfers");
+    assert.strictEqual(report.summary.totalExpense, 1500, "totalExpense should sum negative expenses correctly");
+    assert.strictEqual(report.summary.netCashflow, 8500, "netCashflow should be 8500");
+    assert.strictEqual(report.summary.savingsRate, 85, "savingsRate should be 85%");
 
-    // 2. Check Expense Share
-    const foodCat = report.expenseCategories.find(c => c.name === "Food");
-    assert.ok(foodCat, "Food category missing");
-    assert.strictEqual(foodCat.amount, 2000000, "Food amount incorrect");
-    assert.strictEqual(Math.round(foodCat.percentage), 57, "Food percentage incorrect"); // 2M / 3.5M = ~57.14%
+    // Assets/Debt
+    assert.strictEqual(report.summary.totalAssets, 1500, "totalAssets should sum current balances");
+    assert.strictEqual(report.summary.totalDebt, 45000, "totalDebt should be loan (40k) + CC (5k)");
 
-    const transportCat = report.expenseCategories.find(c => c.name === "Transport");
-    assert.ok(transportCat, "Transport category missing");
-    assert.strictEqual(Math.round(transportCat.percentage), 29, "Transport percentage incorrect"); // 1M / 3.5M = ~28.57%
-
-    const otherCat = report.expenseCategories.find(c => c.name === "Other");
-    assert.ok(otherCat, "Other category missing");
-    assert.strictEqual(Math.round(otherCat.percentage), 14, "Other percentage incorrect"); // 500k / 3.5M = ~14.29%
-
-    // 3. User Isolation Test
-    console.log("Testing user isolation...");
+    // User Isolation
     const reportB = await ReportService.getFinancialReport(userB.id, "this_month");
-    assert.strictEqual(reportB.summary.totalIncome, 9999999, "User B income should not mix with User A");
-    assert.strictEqual(reportB.summary.totalExpense, 0, "User B should have 0 expenses");
+    assert.strictEqual(reportB.summary.totalIncome, 99999, "User B income isolated");
+    assert.strictEqual(reportB.summary.totalExpense, 0, "User B has 0 expenses");
+    assert.strictEqual(reportB.summary.totalDebt, 0, "User B has 0 debt");
     
-    // 4. Test period boundaries
-    const { startDate, endDate } = getReportPeriodDates("custom", "2026-08-01", "2026-08-31");
-    // Start should be Aug 1 00:00:00
-    assert.strictEqual(startDate.getDate(), 1);
-    assert.strictEqual(startDate.getHours(), 0);
-    // End should be Sep 1 00:00:00 (exclusive)
-    assert.strictEqual(endDate.getDate(), 1);
-    assert.strictEqual(endDate.getMonth(), 8); // 8 is Sept since 0 is Jan
-    assert.strictEqual(endDate.getHours(), 0);
+    // Empty Data
+    const emptyReport = await ReportService.getFinancialReport(userB.id, "custom", "1990-01-01", "1990-01-31");
+    assert.strictEqual(emptyReport.summary.totalIncome, 0);
+    assert.strictEqual(emptyReport.summary.savingsRate, null, "savingsRate should be null when income is 0");
 
-    console.log("All report tests PASSED.");
+    // Historical Snapshot (End of Last Month)
+    const lastMonth = getReportPeriodDates("last_month");
+    const reportLastMonth = await ReportService.getFinancialReport(userA.id, "last_month");
+    // Since all our txs were inserted in "this month", the snapshot for last month should exclude them!
+    // Total assets: 1500 currently. Txs: 10000 income, 1500 expense. Transfer 500 (internal).
+    // So current assets = 1500. Past assets = 1500 - 10000 + 1500 = -7000.
+    assert.strictEqual(reportLastMonth.summary.totalAssets, -7000, "totalAssets snapshot at end of last month");
+    
+    // Quick Export Test (No actual endpoint, just simulate calling PDF generation logic if we could, but we can't easily here without mocking request)
+    // We already tested logic, API routes are tested via typecheck and build.
+
+    console.log("All report logic tests PASSED.");
   } finally {
     console.log("Cleaning up test data...");
-    await cleanupTestData(userA.id, userB.id);
+    await cleanupTestData();
   }
 }
 

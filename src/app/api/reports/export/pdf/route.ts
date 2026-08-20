@@ -8,6 +8,8 @@ import { formatVND, formatPercent } from "@/lib/format/money";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
+export const runtime = "nodejs";
+
 // Initialize fonts
 if (pdfFonts && (pdfFonts as any).pdfMake) {
   (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;

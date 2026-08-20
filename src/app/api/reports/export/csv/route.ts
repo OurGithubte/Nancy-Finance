@@ -11,14 +11,18 @@ function escapeCSV(field: string | number | null | undefined): string {
   if (field === null || field === undefined) return '""';
   let str = String(field);
   
-  // Guard against CSV injection formula
-  if (str.startsWith("=") || str.startsWith("+") || str.startsWith("-") || str.startsWith("@")) {
-    str = "'" + str;
+  // Guard against CSV injection formula and invisible triggering characters
+  const injectionChars = ["=", "+", "-", "@", "\t", "\r", "\n"];
+  if (injectionChars.some(char => str.startsWith(char))) {
+    str = "'" + str; // Prefix with single quote to force text evaluation
   }
 
   // Escape quotes
-  if (str.includes('"') || str.includes(',')) {
-    str = `"${str.replace(/"/g, '""')}"`;
+  str = str.replace(/"/g, '""');
+
+  // If contains quotes, commas, or newlines, wrap in quotes
+  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+    str = `"${str}"`;
   }
   return str;
 }
