@@ -206,7 +206,8 @@ export const planningRepository = {
         .select()
         .from(savingGoals)
         .where(and(eq(savingGoals.id, goalId), eq(savingGoals.userId, userId)))
-        .limit(1);
+        .limit(1)
+        .for("update");
       
       const goal = goalRes[0];
       if (!goal) throw new Error("Saving goal not found");
