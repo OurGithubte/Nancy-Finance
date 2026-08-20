@@ -2,12 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { FinanceDialog } from "@/components/finance/finance-dialog";
 import { FinanceDrawer } from "@/components/finance/finance-drawer";
 import { TransactionForm } from "@/components/finance/transaction-form";
+import { signOut } from "@/lib/auth/auth-client";
 import {
   Wallet,
   CreditCard,
@@ -25,8 +27,16 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsMobileMenuOpen(false);
+    await signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const extraMobileMenuItems = [
     { href: "/accounts", label: "Tài khoản & Ví", icon: Wallet },
@@ -129,14 +139,14 @@ export default function DashboardLayout({
               })}
 
               <div className="pt-3 mt-3 border-t border-border">
-                <Link
-                  href="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-expense hover:bg-expense/10 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-expense hover:bg-expense/10 transition-colors cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>Đăng xuất</span>
-                </Link>
+                </button>
               </div>
             </div>
           </div>

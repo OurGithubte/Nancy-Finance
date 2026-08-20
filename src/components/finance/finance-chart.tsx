@@ -9,6 +9,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -18,6 +20,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExpenseCategoryShare, MonthlyCashflowPoint } from "@/types/finance";
 import { formatVND, formatCompactVND } from "@/lib/format/money";
+import type { NetWorthPoint } from "@/server/services/net-worth";
 
 // 1. Donut Chart for Expense Breakdown
 export interface ExpenseDonutChartProps {
@@ -273,6 +276,101 @@ export function CashflowTrendChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  );
+}
+
+// 3. Net Worth Trend Line Chart (Phase 6)
+export interface NetWorthTrendChartProps {
+  title?: string;
+  data: NetWorthPoint[];
+  hasSufficientHistory: boolean;
+  className?: string;
+}
+
+export function NetWorthTrendChart({
+  title = "Xu hướng tài sản ròng",
+  data,
+  hasSufficientHistory,
+  className,
+}: NetWorthTrendChartProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur",
+        className
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        <span className="text-xs font-medium text-muted">{data.length} tháng gần nhất</span>
+      </div>
+
+      {!hasSufficientHistory ? (
+        <div className="mt-5 flex h-[200px] w-full flex-col items-center justify-center gap-1.5 text-center">
+          <span className="text-sm font-medium text-slate-300">Chưa đủ dữ liệu lịch sử</span>
+          <span className="max-w-xs text-xs text-muted">
+            Nancy cần thêm dữ liệu vài tháng nữa để hiển thị xu hướng tài sản ròng chính xác.
+          </span>
+        </div>
+      ) : (
+        <div className="mt-5 h-[200px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="monthLabel"
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                axisLine={{ stroke: "#1e293b" }}
+              />
+              <YAxis
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val) => formatCompactVND(val)}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const point = payload[0].payload as NetWorthPoint;
+                    return (
+                      <div className="rounded-xl border border-border-card bg-surface/95 p-3 shadow-xl backdrop-blur">
+                        <p className="text-xs font-semibold text-slate-300 mb-1.5">{label}</p>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-slate-300">Tài sản:</span>
+                            <span className="font-bold text-foreground">{formatVND(point.assets)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-slate-300">Dư nợ:</span>
+                            <span className="font-bold text-foreground">{formatVND(point.debt)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-primary font-medium">Tài sản ròng:</span>
+                            <span className="font-bold text-foreground">{formatVND(point.netWorth)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="netWorth"
+                stroke="#8B5CF6"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#8B5CF6", strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: "#8B5CF6", stroke: "#0f172a", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

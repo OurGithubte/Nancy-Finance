@@ -2,10 +2,14 @@
 
 import React from "react";
 import { FinancePageHeader } from "@/components/finance/finance-page-header";
-import { mockUserProfile } from "@/server/mock/dashboard-data";
+import { useSession } from "@/lib/auth/auth-client";
 import { User, Shield, Database, Check } from "lucide-react";
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const name = session?.user?.name || "";
+  const email = session?.user?.email || "";
+
   return (
     <div className="space-y-6 max-w-4xl">
       <FinancePageHeader
@@ -29,7 +33,8 @@ export default function SettingsPage() {
               </label>
               <input
                 type="text"
-                defaultValue={mockUserProfile.name}
+                defaultValue={name}
+                readOnly
                 className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary"
               />
             </div>
@@ -39,7 +44,8 @@ export default function SettingsPage() {
               </label>
               <input
                 type="email"
-                defaultValue={mockUserProfile.email}
+                defaultValue={email}
+                readOnly
                 className="w-full rounded-xl border border-border bg-surface-card px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary"
               />
             </div>

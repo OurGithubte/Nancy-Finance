@@ -4,13 +4,16 @@ import React from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockUserProfile } from "@/server/mock/dashboard-data";
+import { useSession } from "@/lib/auth/auth-client";
 
 export interface AppHeaderProps {
   className?: string;
 }
 
 export function AppHeader({ className }: AppHeaderProps) {
+  const { data: session } = useSession();
+  const displayName = session?.user?.name || session?.user?.email || "Người dùng";
+
   return (
     <header className={cn("flex lg:hidden items-center justify-between border-b border-border bg-background/80 px-4 py-3 sticky top-0 z-30 backdrop-blur", className)}>
       <Link href="/" className="flex items-center gap-2.5">
@@ -32,7 +35,7 @@ export function AppHeader({ className }: AppHeaderProps) {
         </button>
 
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
-          {mockUserProfile.name.charAt(0)}
+          {displayName.charAt(0).toUpperCase()}
         </div>
       </div>
     </header>

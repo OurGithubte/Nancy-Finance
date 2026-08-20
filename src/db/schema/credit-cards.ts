@@ -43,6 +43,7 @@ export const creditCardTransactions = pgTable(
   },
   (table) => [
     index("cc_tx_card_idx").on(table.creditCardId),
+    index("cc_tx_card_date_idx").on(table.creditCardId, table.transactionDate),
   ]
 );
 
@@ -79,5 +80,8 @@ export const creditCardPayments = pgTable(
     paymentDate: timestamp("payment_date").notNull(),
     note: text("note"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    index("cc_payments_card_date_idx").on(table.creditCardId, table.paymentDate),
+  ]
 );

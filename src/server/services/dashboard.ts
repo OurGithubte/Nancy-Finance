@@ -1,44 +1,48 @@
 import { db } from "@/db";
-import { transactions, financialAccounts, categories, creditCards, loans } from "@/db/schema";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { transactions, financialAccounts, categories } from "@/db/schema";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { NetWorthService } from "./net-worth";
+import { getPreviousPeriodDates } from "./reports";
+
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return null; // no meaningful baseline -> N/A, never fabricate 0%
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
 
 export class DashboardService {
+  /**
+   * `periodStart`/`periodEnd` follow [start, endExclusive) VN-calendar semantics —
+   * callers (the dashboard page) are responsible for computing them via
+   * `getReportPeriodDates` so timezone/boundary handling stays in one place.
+   */
   async getDashboardSummary(userId: string, periodStart: Date, periodEnd: Date) {
-    // 1. Get Accounts (for Net Worth, Available Cash, Total Debt)
+    // 1. Get Accounts (for Available Cash) — active accounts only for display
     const accounts = await db
       .select()
       .from(financialAccounts)
       .where(and(eq(financialAccounts.userId, userId), eq(financialAccounts.isActive, true)));
 
-    let netWorth = 0;
     let availableCash = 0;
-    let totalDebt = 0;
-
     for (const acc of accounts) {
-      const bal = acc.balance; // It's a number
-      if (!acc.isExcludedFromTotal) {
-        netWorth += bal;
-      }
-      if (acc.type !== "investment") { // basic assumption for cash
-        availableCash += bal;
+      if (acc.type !== "investment") {
+        availableCash += acc.balance;
       }
     }
 
-    const cards = await db.query.creditCards.findMany({
-      where: and(eq(creditCards.userId, userId), eq(creditCards.isActive, true)),
-    });
-    const allLoans = await db.query.loans.findMany({
-      where: and(eq(loans.userId, userId), eq(loans.isActive, true)),
-    });
+    // 2. Snapshot metrics (Net Worth = Total Assets - Total Debt) at "now"
+    // and at the start of the previous equal-length period, reconstructed
+    // via the same engine used for the historical Net Worth trend so the
+    // semantics never drift between the two.
+    const { startDate: prevPeriodStart } = getPreviousPeriodDates(periodStart, periodEnd);
+    const [nowSnapshot, prevSnapshot] = await Promise.all([
+      NetWorthService.getSnapshotAt(userId, new Date()),
+      NetWorthService.getSnapshotAt(userId, prevPeriodStart),
+    ]);
 
-    for (const card of cards) {
-      totalDebt += card.currentBalance;
-    }
-    for (const loan of allLoans) {
-      totalDebt += loan.remainingAmount;
-    }
+    const netWorth = nowSnapshot.netWorth;
+    const totalDebt = nowSnapshot.debt;
 
-    // 2. Get Month Transactions
+    // 3. Period transactions (income/expense only — transfers never affect flow metrics)
     const periodTxs = await db
       .select({
         amount: transactions.amount,
@@ -51,8 +55,9 @@ export class DashboardService {
       .where(
         and(
           eq(transactions.userId, userId),
+          eq(transactions.status, "completed"),
           gte(transactions.transactionDate, periodStart),
-          lte(transactions.transactionDate, periodEnd)
+          lt(transactions.transactionDate, periodEnd)
         )
       );
 
@@ -80,6 +85,26 @@ export class DashboardService {
 
     const expenseCategories = Object.values(expenseByCategory).sort((a, b) => b.amount - a.amount);
 
+    // 4. Previous period income/expense for growth comparison (flow metrics)
+    const { startDate: prevStart, endDate: prevEnd } = getPreviousPeriodDates(periodStart, periodEnd);
+    const prevTxs = await db
+      .select({ amount: transactions.amount, type: transactions.type })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.status, "completed"),
+          gte(transactions.transactionDate, prevStart),
+          lt(transactions.transactionDate, prevEnd)
+        )
+      );
+    let prevIncome = 0;
+    let prevExpense = 0;
+    for (const tx of prevTxs) {
+      if (tx.type === "income") prevIncome += tx.amount;
+      else if (tx.type === "expense") prevExpense += tx.amount;
+    }
+
     return {
       kpiSummary: {
         netWorth,
@@ -87,36 +112,34 @@ export class DashboardService {
         totalIncome,
         totalExpense,
         totalDebt,
-        netWorthGrowth: 0, // Mock for Phase 1
-        incomeGrowth: 0, // Mock for Phase 1
-        expenseGrowth: 0, // Mock for Phase 1
-        debtGrowth: 0, // Mock for Phase 1
+        // null means "not enough data to compute a meaningful change" -> UI must show N/A, never fabricate 0%.
+        netWorthGrowth: pctChange(netWorth, prevSnapshot.netWorth),
+        incomeGrowth: pctChange(totalIncome, prevIncome),
+        expenseGrowth: pctChange(totalExpense, prevExpense),
+        debtGrowth: pctChange(totalDebt, prevSnapshot.debt),
       },
       expenseCategories,
       accounts,
-      // Recent transactions can be fetched from transactionsService later
     };
   }
 
-  // Monthly cashflow for the last 6 months
+  // Monthly cashflow for the last 6 months, grouped explicitly in Asia/Ho_Chi_Minh
   async getCashflowTrend(userId: string) {
-    // A simplified query to get monthly cashflow
-    // Grouping by month in postgres: date_trunc('month', transaction_date)
     const result = await db.execute(sql`
-      SELECT 
-        to_char(date_trunc('month', transaction_date), 'Mon') as month,
+      SELECT
+        to_char(date_trunc('month', transaction_date AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'Mon') as month,
         SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
       FROM transactions
       WHERE user_id = ${userId}
-        AND transaction_date >= date_trunc('month', current_date - interval '5 months')
-      GROUP BY date_trunc('month', transaction_date)
-      ORDER BY date_trunc('month', transaction_date) ASC
+        AND status = 'completed'
+        AND transaction_date >= (date_trunc('month', (now() AT TIME ZONE 'Asia/Ho_Chi_Minh') - interval '5 months'))
+      GROUP BY date_trunc('month', transaction_date AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Ho_Chi_Minh')
+      ORDER BY date_trunc('month', transaction_date AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Ho_Chi_Minh') ASC
     `);
 
-    // result.rows will look like: { month: 'Jan', income: '1000', expense: '500' }
-    return result.rows.map((row: any) => ({
-      month: row.month,
+    return result.rows.map((row) => ({
+      month: row.month as string,
       income: Number(row.income),
       expense: Number(row.expense),
     }));

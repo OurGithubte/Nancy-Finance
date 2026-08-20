@@ -14,12 +14,18 @@ import {
 import { AccountListCard } from "@/components/finance/account-card";
 import { CreditCardListCard } from "@/components/finance/credit-card-card";
 import { LoanListCard } from "@/components/finance/loan-card";
-// import { NancyInsightCard } from "@/components/finance/nancy-insight-card"; // Removed for Phase 1
+import { NetWorthTrendChart } from "@/components/finance/finance-chart";
+import { ForecastSummaryCard } from "@/components/finance/forecast-summary-card";
+import { SmartInsights } from "@/components/finance/smart-insights";
 import { TransactionTable } from "@/components/finance/transaction-table";
 import { dashboardService } from "@/server/services/dashboard";
 import { transactionsRepository } from "@/server/repositories/transactions";
 import { creditCardsRepository } from "@/server/repositories/credit-cards";
 import { loansRepository } from "@/server/repositories/loans";
+import { NetWorthService } from "@/server/services/net-worth";
+import { ForecastService } from "@/server/services/forecast";
+import { insightsService } from "@/server/services/insights";
+import { getReportPeriodDates, createVNDate } from "@/server/services/reports";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -39,24 +45,29 @@ export default async function DashboardOverviewPage({
   const userId = session.user.id;
   const resolvedParams = await searchParams;
   const periodParam = resolvedParams.period as string;
-  
+
+  // VN-calendar month boundaries, [start, endExclusive). Never rely on server-local time.
   let periodStart: Date;
   let periodEnd: Date;
-  
-  if (periodParam) {
-    periodStart = new Date(`${periodParam}-01T00:00:00`);
-    periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0, 23, 59, 59);
+  if (periodParam && /^\d{4}-\d{2}$/.test(periodParam)) {
+    const [y, m] = periodParam.split("-").map(Number);
+    periodStart = createVNDate(y, m, 1);
+    periodEnd = m === 12 ? createVNDate(y + 1, 1, 1) : createVNDate(y, m + 1, 1);
   } else {
-    const now = new Date();
-    periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-    periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    ({ startDate: periodStart, endDate: periodEnd } = getReportPeriodDates("this_month"));
   }
 
-  const summary = await dashboardService.getDashboardSummary(userId, periodStart, periodEnd);
-  const cashflow = await dashboardService.getCashflowTrend(userId);
-  const recentTransactions = await transactionsRepository.getTransactions(userId, undefined, undefined, 10);
-  const creditCards = await creditCardsRepository.getCreditCards(userId);
-  const loans = await loansRepository.getLoans(userId);
+  const [summary, cashflow, recentTransactions, creditCards, loans, netWorthHistory, forecastSummary, smartInsights] =
+    await Promise.all([
+      dashboardService.getDashboardSummary(userId, periodStart, periodEnd),
+      dashboardService.getCashflowTrend(userId),
+      transactionsRepository.getTransactions(userId, undefined, undefined, 10),
+      creditCardsRepository.getCreditCards(userId),
+      loansRepository.getLoans(userId),
+      NetWorthService.getNetWorthHistory(userId, 6),
+      ForecastService.getForecast(userId, 30),
+      insightsService.getSmartInsights(userId),
+    ]);
 
   const mappedTransactions = recentTransactions.map(tx => ({
     id: tx.id,
@@ -211,7 +222,24 @@ export default async function DashboardOverviewPage({
         <LoanListCard loans={mappedLoans} />
       </div>
 
-      {/* 6. Recent Transactions Table */}
+      {/* 6. Net Worth Trend + Forecast Summary */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <NetWorthTrendChart
+            data={netWorthHistory.points}
+            hasSufficientHistory={netWorthHistory.hasSufficientHistory}
+            className="h-full"
+          />
+        </div>
+        <div className="lg:col-span-5">
+          <ForecastSummaryCard forecast={forecastSummary} className="h-full" />
+        </div>
+      </div>
+
+      {/* 7. Smart Insights */}
+      <SmartInsights insights={smartInsights} />
+
+      {/* 8. Recent Transactions Table */}
       <div className="pt-2">
         <TransactionTable transactions={mappedTransactions as any} />
       </div>

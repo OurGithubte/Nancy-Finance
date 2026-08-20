@@ -92,7 +92,11 @@ export const recurringTransactions = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     note: text("note"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    index("recurring_tx_user_idx").on(table.userId),
+    index("recurring_tx_next_due_idx").on(table.isActive, table.nextDueDate),
+  ]
 );
 
 export const financialEvents = pgTable(

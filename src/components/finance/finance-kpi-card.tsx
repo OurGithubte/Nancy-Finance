@@ -7,7 +7,7 @@ import { formatPercent } from "@/lib/format/money";
 export interface FinanceKpiCardProps {
   title: string;
   amount: number | bigint;
-  growth: number; // e.g. 8.2 or -4.1
+  growth: number | null; // e.g. 8.2 or -4.1; null = insufficient data to compare -> shows "N/A"
   growthLabel?: string; // e.g. "so với tháng trước"
   icon: React.ReactNode;
   iconBgColor?: string;
@@ -27,7 +27,8 @@ export function FinanceKpiCard({
   isDebtCard = false,
   className,
 }: FinanceKpiCardProps) {
-  const isPositive = growth > 0;
+  const hasGrowth = growth !== null && growth !== undefined && !Number.isNaN(growth);
+  const isPositive = hasGrowth && growth > 0;
   // For normal cards (income, net worth): positive growth is good (income token), negative is bad (expense token)
   // For debt cards: positive growth is bad (debt increased -> expense), negative growth is good (debt reduced -> income)
   const isGood = isDebtCard ? !isPositive : isPositive;
@@ -59,19 +60,25 @@ export function FinanceKpiCard({
 
       {/* Growth comparison badge */}
       <div className="mt-3 flex items-center gap-1.5 text-xs">
-        <div
-          className={cn(
-            "inline-flex items-center font-medium",
-            isGood ? "text-income" : "text-expense"
-          )}
-        >
-          {isPositive ? (
-            <ArrowUpRight className="mr-0.5 h-3.5 w-3.5" />
-          ) : (
-            <ArrowDownRight className="mr-0.5 h-3.5 w-3.5" />
-          )}
-          <span>{formatPercent(Math.abs(growth))}</span>
-        </div>
+        {hasGrowth ? (
+          <div
+            className={cn(
+              "inline-flex items-center font-medium",
+              isGood ? "text-income" : "text-expense"
+            )}
+          >
+            {isPositive ? (
+              <ArrowUpRight className="mr-0.5 h-3.5 w-3.5" />
+            ) : (
+              <ArrowDownRight className="mr-0.5 h-3.5 w-3.5" />
+            )}
+            <span>{formatPercent(Math.abs(growth as number))}</span>
+          </div>
+        ) : (
+          <span className="inline-flex items-center font-medium text-muted" aria-label="Không đủ dữ liệu để so sánh">
+            N/A
+          </span>
+        )}
         <span className="text-muted">{growthLabel}</span>
       </div>
     </div>

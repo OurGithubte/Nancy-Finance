@@ -66,5 +66,8 @@ export const loanPayments = pgTable(
     paymentDate: timestamp("payment_date").notNull(),
     note: text("note"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    index("loan_payments_loan_date_idx").on(table.loanId, table.paymentDate),
+  ]
 );

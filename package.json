@@ -14,7 +14,9 @@
     "db:migrate:safe": "tsx scripts/db-migrate-safe.ts",
     "db:push": "tsx scripts/db-push-safe.ts",
     "db:verify": "tsx scripts/verify-migrations.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test": "tsx --env-file=.env.local scripts/test-dates.ts && tsx --env-file=.env.local scripts/test-cron.ts",
+    "test:integration": "tsx --env-file=.env.local scripts/test-concurrency.ts && tsx --env-file=.env.local scripts/test-calendar-cc.ts && tsx --env-file=.env.local scripts/test-insights.ts && tsx --env-file=.env.local scripts/test-reports.ts && tsx --env-file=.env.local scripts/test-net-worth.ts && tsx --env-file=.env.local scripts/test-forecast.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -25,6 +27,7 @@
     "drizzle-orm": "^0.39.3",
     "lucide-react": "^0.475.0",
     "next": "16.2.10",
+    "pdfmake": "^0.3.11",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "recharts": "3.10.1",
@@ -37,6 +40,7 @@
     "@next/eslint-plugin-next": "^16.3.1",
     "@tailwindcss/postcss": "^4.0.9",
     "@types/node": "^22.13.5",
+    "@types/pdfmake": "^0.3.3",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
     "@typescript-eslint/eslint-plugin": "^8.67.0",

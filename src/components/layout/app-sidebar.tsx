@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -15,10 +15,10 @@ import {
   BarChart3,
   Settings,
   Plus,
-  Crown,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockUserProfile } from "@/server/mock/dashboard-data";
+import { useSession, signOut } from "@/lib/auth/auth-client";
 
 export interface AppSidebarProps {
   onQuickExpense?: () => void;
@@ -27,6 +27,15 @@ export interface AppSidebarProps {
 
 export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = useSession();
+  const displayName = session?.user?.name || session?.user?.email || "Người dùng";
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const navItems = [
     { href: "/", label: "Tổng quan", icon: LayoutDashboard },
@@ -117,20 +126,27 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
 
         {/* User Profile Card */}
         <div className="flex items-center justify-between rounded-xl bg-surface/60 p-2.5 border border-border">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
-              {mockUserProfile.name.charAt(0)}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
+              {displayName.charAt(0).toUpperCase()}
             </div>
-            <div className="text-left">
+            <div className="text-left min-w-0">
               <span className="text-xs font-semibold text-foreground block truncate max-w-[110px]">
-                {mockUserProfile.name}
+                {displayName}
               </span>
-              <span className="text-[10px] text-warning font-medium flex items-center gap-1">
-                Premium
-                <Crown className="h-2.5 w-2.5 fill-warning text-warning" />
+              <span className="text-[10px] text-muted font-medium block truncate max-w-[110px]">
+                {session?.user?.email || ""}
               </span>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            aria-label="Đăng xuất"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-expense hover:bg-expense/10 transition-colors cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </aside>
