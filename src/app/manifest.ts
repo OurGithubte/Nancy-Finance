@@ -16,7 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/branding/nancy-finance-mark-v3.svg",
         sizes: "any",
         type: "image/svg+xml",
-        purpose: "any maskable",
+        purpose: "maskable",
       },
     ],
   };
