@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, User, ArrowRight } from "lucide-react";
+import { NancyLogo } from "@/components/branding/nancy-logo";
 import { signUp } from "@/lib/auth/auth-client";
 
 export default function RegisterPage() {
@@ -40,9 +41,11 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-3xl border border-border bg-surface/90 p-8 shadow-2xl backdrop-blur">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-slate-950 font-bold text-xl shadow-lg shadow-primary/20 mb-3">
-            N
-          </div>
+          <NancyLogo
+            className="mx-auto h-20 w-20 mb-3 shadow-lg shadow-primary/20"
+            sizes="80px"
+            priority
+          />
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
             Tạo tài khoản mới
           </h1>
