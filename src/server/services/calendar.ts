@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { financialEvents, recurringTransactions, creditCards } from "@/db/schema";
+import { financialEvents, recurringTransactions, creditCards, creditCardStatements } from "@/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { projectRecurringOccurrences, safeDayOfMonth } from "@/lib/format/date";
 
@@ -64,10 +64,26 @@ export const calendarService = {
       .select()
       .from(creditCards)
       .where(eq(creditCards.userId, userId));
+
+    const cardIds = cards.map((c) => c.id);
+    let statements: any[] = [];
+    if (cardIds.length > 0) {
+      statements = await db
+        .select()
+        .from(creditCardStatements)
+        // Optimization: just fetch all statements for user's cards and match in memory
+        // if user has many statements, we should filter by date, but this is fine for now
+        // since we only have a few cards
+        .where(
+          and(
+            gte(creditCardStatements.dueDate, startDate),
+            lte(creditCardStatements.dueDate, endDate)
+          )
+        );
+      statements = statements.filter((s) => cardIds.includes(s.creditCardId));
+    }
       
     for (const card of cards) {
-      // Find occurrences of statement day and payment due day in the range
-      // Scan from 1 month before startDate to capture trailing due dates
       const scanStart = new Date(startDate);
       scanStart.setMonth(scanStart.getMonth() - 1);
       scanStart.setDate(1);
@@ -78,7 +94,6 @@ export const calendarService = {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
 
-        // Statement date
         const stmtDate = safeDayOfMonth(year, month, card.statementDay);
         
         if (stmtDate >= startDate && stmtDate <= endDate) {
@@ -92,11 +107,9 @@ export const calendarService = {
           });
         }
         
-        // Due date calculation for the CURRENT statement cycle
         let dueMonth = month;
         let dueYear = year;
         
-        // If payment due date is numerically smaller than statement date, it falls in the NEXT month
         if (card.dueDay < card.statementDay) {
            dueMonth++;
         }
@@ -104,13 +117,22 @@ export const calendarService = {
         const dueDate = safeDayOfMonth(dueYear, dueMonth, card.dueDay);
 
         if (dueDate >= startDate && dueDate <= endDate) {
+          // Find if there's an actual statement for this exact due date
+          const matchingStmt = statements.find(
+            (s) => s.creditCardId === card.id && s.dueDate.getTime() === dueDate.getTime()
+          );
+
           events.push({
             id: `cc_due_${card.id}_${dueDate.getTime()}`,
             date: dueDate,
             title: `Hạn thanh toán thẻ ${card.name}`,
-            amount: null, // Ideally we calculate from unpaid statements, but null for now
+            // We use the actual unpaid statement totalDue if it exists. 
+            // If it's already paid, amount is 0 or null? If paid, totalDue is still there, but status is 'paid'.
+            // For now, if we have a statement, we show totalDue (or minPaymentDue). If not, null.
+            // Limitation: if statement isn't generated yet, it shows null.
+            amount: matchingStmt ? matchingStmt.totalDue : null, 
             type: "payment_due",
-            status: "urgent",
+            status: matchingStmt && matchingStmt.isPaid === 'paid' ? "completed" : "urgent",
           });
         }
         
@@ -118,7 +140,6 @@ export const calendarService = {
       }
     }
 
-    // Sort by date ascending
     events.sort((a, b) => a.date.getTime() - b.date.getTime());
     
     return events;

@@ -82,17 +82,27 @@ export class AutomationService {
             recurringTransactionId: id,
             recurringOccurrenceDate: currentDueDate,
           };
-
-          // Wait, TransactionsService.createTransaction does not expect recurringTransactionId and recurringOccurrenceDate in CreateTransactionData.
-          // Wait, the CreateTransactionData type is inferred from transactions.$inferInsert. So it DOES accept them!
-          await transactionsService.createTransaction(transactionData, tx);
-          processedCount++;
+          try {
+            // Nested transaction (savepoint) guarantees atomicity between insert and balance update.
+            // If unique constraint is violated, this block rolls back safely without aborting the outer tx.
+            await tx.transaction(async (tx2) => {
+              await transactionsService.createTransaction(transactionData, tx2);
+            });
+            processedCount++;
+          } catch (e: any) {
+            // PostgreSQL unique violation error code
+            if (e.code === "23505" && e.constraint === "transactions_recurring_occurrence_unq") {
+              skippedCount++;
+            } else {
+              // Other DB errors (e.g., account balance failure) MUST bubble up and fail the whole job
+              throw e;
+            }
+          }
         }
 
         // Advance to next due date
         const next = calculateNextDueDate(currentDueDate, rt.frequency as any, rt.startDate);
         if (next.getTime() <= currentDueDate.getTime()) {
-          // Safety break to prevent infinite loops in case of logic error
           break;
         }
         currentDueDate = next;
@@ -107,8 +117,10 @@ export class AutomationService {
       if (processedCount === 0 && skippedCount > 0 && status !== "expired") {
          status = "skipped_already_processed";
       }
+      
+      const limitReached = (processedCount + skippedCount) >= MAX_CATCH_UP;
 
-      return { status, processedCount, skippedCount, nextDueDate: currentDueDate };
+      return { status, processedCount, skippedCount, nextDueDate: currentDueDate, limitReached };
     });
   }
 
@@ -136,18 +148,28 @@ export class AutomationService {
       errors: [] as string[],
     };
 
-    const results = await Promise.allSettled(
-      dueTransactions.map((dt) => this.processRecurringTransaction(dt.id))
-    );
+    const MAX_CONCURRENT_RECURRING = 10;
+    
+    // Process them in chunks to avoid unbounded concurrency
+    for (let i = 0; i < dueTransactions.length; i += MAX_CONCURRENT_RECURRING) {
+      const chunk = dueTransactions.slice(i, i + MAX_CONCURRENT_RECURRING);
+      
+      const results = await Promise.allSettled(
+        chunk.map((dt) => this.processRecurringTransaction(dt.id))
+      );
 
-    for (let i = 0; i < results.length; i++) {
-      const res = results[i];
-      if (res.status === "fulfilled") {
-        stats.processedCount += res.value.processedCount;
-        stats.skippedCount += res.value.skippedCount || 0;
-      } else {
-        stats.failedCount++;
-        stats.errors.push(`Failed ${dueTransactions[i].id}: ${res.reason?.message || "Unknown error"}`);
+      for (let j = 0; j < results.length; j++) {
+        const res = results[j];
+        if (res.status === "fulfilled") {
+          stats.processedCount += res.value.processedCount;
+          stats.skippedCount += res.value.skippedCount || 0;
+          if (res.value.limitReached) {
+            stats.errors.push(`Warning: ${chunk[j].id} hit max catch up limit.`);
+          }
+        } else {
+          stats.failedCount++;
+          stats.errors.push(`Failed ${chunk[j].id}: ${res.reason?.message || "Unknown error"}`);
+        }
       }
     }
 

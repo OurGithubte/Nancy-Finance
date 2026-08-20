@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { budgets, creditCards, recurringTransactions, financialAccounts } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { budgets, creditCards, recurringTransactions, financialAccounts, financialEvents, loans, loanSchedules, creditCardStatements } from "@/db/schema";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { projectRecurringOccurrences, safeDayOfMonth } from "@/lib/format/date";
 
 export type SmartInsight = {
@@ -85,14 +85,15 @@ export const insightsService = {
     const sevenDaysFromNow = new Date(now);
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
     
+    let projectedExpense = 0;
+    let projectedIncome = 0;
+
+    // 3a. Recurring
     const recurring = await db
       .select()
       .from(recurringTransactions)
       .where(and(eq(recurringTransactions.userId, userId), eq(recurringTransactions.isActive, true)));
       
-    let projectedExpense = 0;
-    let projectedIncome = 0;
-    
     for (const rt of recurring) {
       const occurrences = projectRecurringOccurrences(rt as any, now, sevenDaysFromNow);
       for (let i = 0; i < occurrences.length; i++) {
@@ -102,6 +103,66 @@ export const insightsService = {
           projectedIncome += rt.amount;
         }
       }
+    }
+
+    // 3b. Financial Events (Rule: We ignore loan_due and cc_due here to prevent double counting, 
+    // because loanSchedules and creditCardStatements are the authoritative sources)
+    const upcomingEvents = await db
+      .select()
+      .from(financialEvents)
+      .where(
+        and(
+          eq(financialEvents.userId, userId),
+          eq(financialEvents.isCompleted, false),
+          gte(financialEvents.eventDate, now),
+          lte(financialEvents.eventDate, sevenDaysFromNow)
+        )
+      );
+
+    for (const ev of upcomingEvents) {
+      if (ev.amount) {
+        if (ev.eventType === "salary") {
+          projectedIncome += ev.amount;
+        } else if (ev.eventType === "bill_due") {
+          projectedExpense += ev.amount;
+        }
+      }
+    }
+
+    // 3c. Unpaid Loan Schedules
+    const unpaidSchedules = await db
+      .select({ totalDue: loanSchedules.totalDue })
+      .from(loanSchedules)
+      .innerJoin(loans, eq(loans.id, loanSchedules.loanId))
+      .where(
+        and(
+          eq(loans.userId, userId),
+          eq(loanSchedules.isPaid, false),
+          gte(loanSchedules.dueDate, now),
+          lte(loanSchedules.dueDate, sevenDaysFromNow)
+        )
+      );
+      
+    for (const s of unpaidSchedules) {
+      projectedExpense += s.totalDue;
+    }
+
+    // 3d. Unpaid Credit Card Statements
+    const unpaidStatements = await db
+      .select({ totalDue: creditCardStatements.totalDue })
+      .from(creditCardStatements)
+      .innerJoin(creditCards, eq(creditCards.id, creditCardStatements.creditCardId))
+      .where(
+        and(
+          eq(creditCards.userId, userId),
+          sql`${creditCardStatements.isPaid} != 'paid'`,
+          gte(creditCardStatements.dueDate, now),
+          lte(creditCardStatements.dueDate, sevenDaysFromNow)
+        )
+      );
+
+    for (const stmt of unpaidStatements) {
+      projectedExpense += stmt.totalDue;
     }
 
     const projectedAvailable = totalBalance + projectedIncome - projectedExpense;

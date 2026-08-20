@@ -24,7 +24,6 @@ export const recurringService = {
     recurringSchema.parse(data);
     
     // Calculate initial next due date based on start date
-    // Wait, if start date is in the past, we should maybe set nextDueDate to startDate.
     // If it's today or future, we set it to startDate.
     const nextDueDate = data.startDate;
 

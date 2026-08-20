@@ -96,7 +96,6 @@ export function projectRecurringOccurrences(
   const occurrences: Date[] = [];
   
   // Start from the current nextDueDate OR startDate if nextDueDate is not set correctly
-  // Wait, the requirement says "cash flow forecast considers next 7 days". We should start from rt.nextDueDate
   let currentDue = new Date(rt.nextDueDate);
 
   // Safety break to prevent infinite loops (e.g., daily over 100 years)
