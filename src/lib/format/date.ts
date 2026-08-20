@@ -33,29 +33,95 @@ export function formatTimeVN(dateInput: Date | string | number): string {
   return `${hours}:${minutes}`;
 }
 
-export function calculateNextDueDate(currentDate: Date, frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'): Date {
+/**
+ * Returns a new Date clamped to the last day of the month if the preferredDay exceeds it.
+ * E.g., safeDayOfMonth(2024, 1, 31) -> 2024-02-29
+ * Month is 0-indexed (0 = Jan, 1 = Feb, etc.)
+ */
+export function safeDayOfMonth(year: number, month: number, preferredDay: number): Date {
+  const maxDayInMonth = new Date(year, month + 1, 0).getDate();
+  const safeDay = Math.min(preferredDay, maxDayInMonth);
+  return new Date(year, month, safeDay);
+}
+
+/**
+ * Calculates the next due date without drifting the anchor day.
+ */
+export function calculateNextDueDate(
+  currentDate: Date,
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  anchorDate: Date = currentDate
+): Date {
   const nextDate = new Date(currentDate);
+
   if (frequency === 'daily') {
     nextDate.setDate(nextDate.getDate() + 1);
   } else if (frequency === 'weekly') {
     nextDate.setDate(nextDate.getDate() + 7);
   } else if (frequency === 'monthly') {
-    const currentMonth = nextDate.getMonth();
-    const targetMonth = (currentMonth + 1) % 12;
-    nextDate.setMonth(currentMonth + 1);
-    
-    if (nextDate.getMonth() !== targetMonth) {
-      nextDate.setDate(0); 
-    }
+    const nextMonth = nextDate.getMonth() + 1;
+    const year = nextDate.getFullYear();
+    const anchorDay = anchorDate.getDate();
+    return safeDayOfMonth(year, nextMonth, anchorDay);
   } else if (frequency === 'yearly') {
-    if (nextDate.getMonth() === 1 && nextDate.getDate() === 29) {
-      nextDate.setFullYear(nextDate.getFullYear() + 1);
-      if (nextDate.getMonth() !== 1) {
-        nextDate.setDate(0);
-      }
-    } else {
-      nextDate.setFullYear(nextDate.getFullYear() + 1);
-    }
+    const nextYear = nextDate.getFullYear() + 1;
+    const anchorMonth = anchorDate.getMonth();
+    const anchorDay = anchorDate.getDate();
+    return safeDayOfMonth(nextYear, anchorMonth, anchorDay);
   }
+
   return nextDate;
+}
+
+export type RecurringTransactionType = {
+  id: string;
+  type: string;
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  startDate: Date;
+  endDate: Date | null;
+  nextDueDate: Date;
+  note: string | null;
+};
+
+/**
+ * Projects all occurrences of a recurring transaction within a specified range.
+ * Does not mutate DB.
+ */
+export function projectRecurringOccurrences(
+  rt: RecurringTransactionType,
+  startDate: Date,
+  endDate: Date
+): Date[] {
+  const occurrences: Date[] = [];
+  
+  // Start from the current nextDueDate OR startDate if nextDueDate is not set correctly
+  // Wait, the requirement says "cash flow forecast considers next 7 days". We should start from rt.nextDueDate
+  let currentDue = new Date(rt.nextDueDate);
+
+  // Safety break to prevent infinite loops (e.g., daily over 100 years)
+  let iterations = 0;
+  const MAX_ITERATIONS = 500;
+
+  while (currentDue <= endDate && iterations < MAX_ITERATIONS) {
+    iterations++;
+
+    if (currentDue >= startDate) {
+      if (rt.endDate && currentDue > rt.endDate) {
+        break;
+      }
+      occurrences.push(new Date(currentDue));
+    }
+
+    const next = calculateNextDueDate(currentDue, rt.frequency as any, rt.startDate);
+    
+    // Safety check if date didn't advance
+    if (next.getTime() <= currentDue.getTime()) {
+      break;
+    }
+    
+    currentDue = next;
+  }
+
+  return occurrences;
 }

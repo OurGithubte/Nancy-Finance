@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { recurringTransactions, transactions, financialAccounts } from "@/db/schema";
-import { eq, sql, and, lte } from "drizzle-orm";
+import { recurringTransactions, transactions } from "@/db/schema";
+import { eq, and, lte } from "drizzle-orm";
 import { transactionsService } from "./transactions";
 import { calculateNextDueDate } from "@/lib/format/date";
 import { CreateTransactionData } from "../repositories/transactions";
@@ -9,6 +9,7 @@ export class AutomationService {
   /**
    * Process a single recurring transaction.
    * This method uses a row-level lock (FOR UPDATE) to ensure idempotency and prevent race conditions.
+   * Catches up overdue occurrences up to 100 times.
    */
   async processRecurringTransaction(id: string) {
     return await db.transaction(async (tx) => {
@@ -20,55 +21,94 @@ export class AutomationService {
         .for("update");
 
       if (!rt) {
-        return { status: "not_found" };
+        return { status: "not_found", processedCount: 0 };
       }
 
       const now = new Date();
 
-      // 2. Re-check conditions after acquiring lock
       if (!rt.isActive) {
-        return { status: "skipped", reason: "inactive" };
+        return { status: "skipped_inactive", processedCount: 0 };
       }
 
       if (rt.nextDueDate > now) {
-        return { status: "skipped", reason: "not_due" };
+        return { status: "skipped_not_due", processedCount: 0 };
       }
 
-      if (rt.endDate && rt.endDate < now) {
-        // Automatically deactivate if end date is passed
-        await tx
-          .update(recurringTransactions)
-          .set({ isActive: false })
-          .where(eq(recurringTransactions.id, id));
-        return { status: "skipped", reason: "expired" };
+      const MAX_CATCH_UP = 100;
+      let processedCount = 0;
+      let skippedCount = 0;
+      let currentDueDate = new Date(rt.nextDueDate);
+      let status = "processed";
+
+      while (currentDueDate <= now && (processedCount + skippedCount) < MAX_CATCH_UP) {
+        if (rt.endDate && currentDueDate > rt.endDate) {
+          await tx
+            .update(recurringTransactions)
+            .set({ isActive: false })
+            .where(eq(recurringTransactions.id, id));
+          status = "expired";
+          break;
+        }
+
+        // Check idempotency (has this occurrence been processed already?)
+        // Safe from races because we hold the FOR UPDATE lock on the parent recurring transaction.
+        const [existing] = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.recurringTransactionId, id),
+              eq(transactions.recurringOccurrenceDate, currentDueDate)
+            )
+          )
+          .limit(1);
+
+        if (existing) {
+          skippedCount++;
+        } else {
+          // Create the actual transaction
+          const transactionData: CreateTransactionData & {
+            recurringTransactionId: string;
+            recurringOccurrenceDate: Date;
+          } = {
+            id: crypto.randomUUID(),
+            userId: rt.userId,
+            accountId: rt.accountId,
+            categoryId: rt.categoryId,
+            amount: rt.amount,
+            type: rt.type,
+            transactionDate: currentDueDate,
+            note: `[Auto] ${rt.note || "Recurring transaction"}`,
+            recurringTransactionId: id,
+            recurringOccurrenceDate: currentDueDate,
+          };
+
+          // Wait, TransactionsService.createTransaction does not expect recurringTransactionId and recurringOccurrenceDate in CreateTransactionData.
+          // Wait, the CreateTransactionData type is inferred from transactions.$inferInsert. So it DOES accept them!
+          await transactionsService.createTransaction(transactionData, tx);
+          processedCount++;
+        }
+
+        // Advance to next due date
+        const next = calculateNextDueDate(currentDueDate, rt.frequency as any, rt.startDate);
+        if (next.getTime() <= currentDueDate.getTime()) {
+          // Safety break to prevent infinite loops in case of logic error
+          break;
+        }
+        currentDueDate = next;
       }
 
-      // 3. Create the actual transaction
-      const transactionData: CreateTransactionData = {
-        id: crypto.randomUUID(),
-        userId: rt.userId,
-        accountId: rt.accountId,
-        categoryId: rt.categoryId,
-        amount: rt.amount,
-        type: rt.type,
-        transactionDate: rt.nextDueDate, // Use due date for the transaction date
-        note: `[Auto] ${rt.note || "Recurring transaction"}`,
-      };
-
-      // Ensure that TransactionsService.createTransaction correctly receives the transaction instance 
-      // so it runs atomically in the same db transaction.
-      await transactionsService.createTransaction(transactionData, tx);
-
-      // 4. Calculate next due date
-      const newNextDueDate = calculateNextDueDate(rt.nextDueDate, rt.frequency);
-
-      // 5. Update the recurring transaction with new due date
+      // Update the recurring transaction with new due date
       await tx
         .update(recurringTransactions)
-        .set({ nextDueDate: newNextDueDate })
+        .set({ nextDueDate: currentDueDate })
         .where(eq(recurringTransactions.id, id));
 
-      return { status: "processed", newNextDueDate };
+      if (processedCount === 0 && skippedCount > 0 && status !== "expired") {
+         status = "skipped_already_processed";
+      }
+
+      return { status, processedCount, skippedCount, nextDueDate: currentDueDate };
     });
   }
 
@@ -90,14 +130,12 @@ export class AutomationService {
       );
 
     const stats = {
-      processed: 0,
-      skipped: 0,
-      failed: 0,
+      processedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
       errors: [] as string[],
     };
 
-    // Process them sequentially to avoid overwhelming DB, or use Promise.allSettled for concurrency.
-    // For small batches Promise.allSettled is better.
     const results = await Promise.allSettled(
       dueTransactions.map((dt) => this.processRecurringTransaction(dt.id))
     );
@@ -105,13 +143,10 @@ export class AutomationService {
     for (let i = 0; i < results.length; i++) {
       const res = results[i];
       if (res.status === "fulfilled") {
-        if (res.value.status === "processed") {
-          stats.processed++;
-        } else {
-          stats.skipped++;
-        }
+        stats.processedCount += res.value.processedCount;
+        stats.skippedCount += res.value.skippedCount || 0;
       } else {
-        stats.failed++;
+        stats.failedCount++;
         stats.errors.push(`Failed ${dueTransactions[i].id}: ${res.reason?.message || "Unknown error"}`);
       }
     }

@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { financialEvents, recurringTransactions, creditCards, loans, savingGoals } from "@/db/schema";
+import { financialEvents, recurringTransactions, creditCards } from "@/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { calculateNextDueDate } from "@/lib/format/date";
+import { projectRecurringOccurrences, safeDayOfMonth } from "@/lib/format/date";
 
 export type CalendarEvent = {
   id: string;
@@ -46,29 +46,16 @@ export const calendarService = {
       .where(and(eq(recurringTransactions.userId, userId), eq(recurringTransactions.isActive, true)));
 
     for (const rt of recurring) {
-      let currentDue = new Date(rt.nextDueDate);
-      
-      // Project forward within the range
-      while (currentDue <= endDate) {
-        if (currentDue >= startDate) {
-          // If the recurring transaction has an end date and we passed it, break
-          if (rt.endDate && currentDue > rt.endDate) {
-            break;
-          }
-          events.push({
-            id: `recurring_${rt.id}_${currentDue.getTime()}`,
-            date: currentDue,
-            title: rt.note || (rt.type === 'income' ? 'Thu nhập định kỳ' : 'Chi tiêu định kỳ'),
-            amount: rt.amount,
-            type: rt.type,
-            status: "scheduled",
-          });
-        }
-        
-        // Safety break if interval is too small to avoid infinite loop
-        const next = calculateNextDueDate(currentDue, rt.frequency);
-        if (next.getTime() <= currentDue.getTime()) break;
-        currentDue = next;
+      const occurrences = projectRecurringOccurrences(rt as any, startDate, endDate);
+      for (const occDate of occurrences) {
+        events.push({
+          id: `recurring_${rt.id}_${occDate.getTime()}`,
+          date: occDate,
+          title: rt.note || (rt.type === 'income' ? 'Thu nhập định kỳ' : 'Chi tiêu định kỳ'),
+          amount: rt.amount,
+          type: rt.type,
+          status: "scheduled",
+        });
       }
     }
 
@@ -80,18 +67,24 @@ export const calendarService = {
       
     for (const card of cards) {
       // Find occurrences of statement day and payment due day in the range
-      // This is a simplistic projection, assuming it happens every month on that date
-      let currentMonth = new Date(startDate);
-      currentMonth.setDate(1);
+      // Scan from 1 month before startDate to capture trailing due dates
+      const scanStart = new Date(startDate);
+      scanStart.setMonth(scanStart.getMonth() - 1);
+      scanStart.setDate(1);
+      
+      let currentMonth = new Date(scanStart);
       
       while (currentMonth <= endDate) {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+
         // Statement date
-        const statementDay = new Date(currentMonth);
-        statementDay.setDate(card.statementDay);
-        if (statementDay >= startDate && statementDay <= endDate) {
+        const stmtDate = safeDayOfMonth(year, month, card.statementDay);
+        
+        if (stmtDate >= startDate && stmtDate <= endDate) {
           events.push({
-            id: `cc_stmt_${card.id}_${statementDay.getTime()}`,
-            date: statementDay,
+            id: `cc_stmt_${card.id}_${stmtDate.getTime()}`,
+            date: stmtDate,
             title: `Ngày sao kê thẻ ${card.name}`,
             amount: null,
             type: "statement",
@@ -99,13 +92,16 @@ export const calendarService = {
           });
         }
         
-        // Due date
-        const dueDate = new Date(currentMonth);
-        dueDate.setDate(card.dueDay);
-        // If payment due date is numerically smaller than statement date, it's usually in the NEXT month
+        // Due date calculation for the CURRENT statement cycle
+        let dueMonth = month;
+        let dueYear = year;
+        
+        // If payment due date is numerically smaller than statement date, it falls in the NEXT month
         if (card.dueDay < card.statementDay) {
-           dueDate.setMonth(dueDate.getMonth() + 1);
+           dueMonth++;
         }
+
+        const dueDate = safeDayOfMonth(dueYear, dueMonth, card.dueDay);
 
         if (dueDate >= startDate && dueDate <= endDate) {
           events.push({

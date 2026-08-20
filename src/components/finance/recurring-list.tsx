@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { formatVND } from "@/lib/format/money";
 import { formatDateVN } from "@/lib/format/date";
-import { Play, Pause, Edit, Trash2, CalendarClock } from "lucide-react";
+import { Play, Pause, Trash2, CalendarClock } from "lucide-react";
 import { toggleRecurringAction, deleteRecurringAction } from "@/server/actions/recurring";
 import { Button } from "@/components/ui/button";
 

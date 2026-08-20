@@ -1,6 +1,7 @@
 import { db } from "@/db";
-import { budgets, creditCards, savingGoals, recurringTransactions, financialAccounts } from "@/db/schema";
+import { budgets, creditCards, recurringTransactions, financialAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { projectRecurringOccurrences, safeDayOfMonth } from "@/lib/format/date";
 
 export type SmartInsight = {
   id: string;
@@ -55,17 +56,17 @@ export const insightsService = {
     // 2. Credit Card dues (<= 7 days)
     const cards = await db.select().from(creditCards).where(eq(creditCards.userId, userId));
     for (const card of cards) {
-      // Find next due date
-      const dueDate = new Date(now);
-      dueDate.setDate(card.dueDay);
+      let dueMonth = now.getMonth();
+      let dueYear = now.getFullYear();
+
       if (card.dueDay < now.getDate()) {
-        dueDate.setMonth(dueDate.getMonth() + 1); // next month
+        dueMonth++;
       }
-      
+
+      const dueDate = safeDayOfMonth(dueYear, dueMonth, card.dueDay);
       const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-      
+
       if (daysUntilDue <= 7 && daysUntilDue >= 0 && card.creditLimit > 0) {
-        // Warning if due soon (ideally we check if there's a statement balance, but let's assume it requires attention)
         insights.push({
           id: `cc_due_${card.id}`,
           severity: "warning",
@@ -78,7 +79,6 @@ export const insightsService = {
     }
 
     // 3. Cash-flow risk (predict next 7 days based on recurring + events, compare to available balance)
-    // Simplify: sum of next 7 days recurring expenses vs total balance
     const accounts = await db.select().from(financialAccounts).where(eq(financialAccounts.userId, userId));
     const totalBalance = accounts.reduce((acc, a) => acc + a.balance, 0);
     
@@ -91,19 +91,28 @@ export const insightsService = {
       .where(and(eq(recurringTransactions.userId, userId), eq(recurringTransactions.isActive, true)));
       
     let projectedExpense = 0;
+    let projectedIncome = 0;
+    
     for (const rt of recurring) {
-      if (rt.type === 'expense' && rt.nextDueDate <= sevenDaysFromNow && rt.nextDueDate >= now) {
-        projectedExpense += rt.amount;
+      const occurrences = projectRecurringOccurrences(rt as any, now, sevenDaysFromNow);
+      for (let i = 0; i < occurrences.length; i++) {
+        if (rt.type === 'expense') {
+          projectedExpense += rt.amount;
+        } else if (rt.type === 'income') {
+          projectedIncome += rt.amount;
+        }
       }
     }
-    
-    if (projectedExpense > totalBalance) {
+
+    const projectedAvailable = totalBalance + projectedIncome - projectedExpense;
+
+    if (projectedAvailable < 0) {
       insights.push({
         id: "cashflow_risk",
         severity: "critical",
         title: "Cảnh báo dòng tiền",
-        description: "Các khoản chi dự kiến trong 7 ngày tới vượt quá tổng số dư hiện tại.",
-        amount: projectedExpense - totalBalance,
+        description: "Các khoản chi dự kiến trong 7 ngày tới vượt quá số dư hiện tại kèm thu nhập dự kiến.",
+        amount: Math.abs(projectedAvailable),
       });
     }
 
@@ -112,8 +121,8 @@ export const insightsService = {
       insights.push({
         id: "positive_finance",
         severity: "positive",
-        title: "Tình hình tài chính tốt",
-        description: "Bạn đang quản lý tài chính rất tốt, không có khoản nợ hay ngân sách nào đáng lo ngại lúc này.",
+        title: "Tình hình tài chính ổn định",
+        description: "Hiện chưa phát hiện cảnh báo ngân sách hoặc dòng tiền ngắn hạn.",
       });
     }
 
