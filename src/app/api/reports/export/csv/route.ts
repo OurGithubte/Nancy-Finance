@@ -42,8 +42,8 @@ export async function generateCSV(userId: string, periodType: ReportPeriodType, 
       accountName: financialAccounts.name,
     })
     .from(transactions)
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .leftJoin(financialAccounts, eq(transactions.accountId, financialAccounts.id))
+    .leftJoin(categories, and(eq(transactions.categoryId, categories.id), eq(categories.userId, userId)))
+    .leftJoin(financialAccounts, and(eq(transactions.accountId, financialAccounts.id), eq(financialAccounts.userId, userId)))
     .where(
       and(
         eq(transactions.userId, userId),

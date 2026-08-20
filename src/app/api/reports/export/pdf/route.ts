@@ -16,18 +16,10 @@ if (pdfFonts && (pdfFonts as any).pdfMake) {
   (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
 }
 
-export async function generatePDF(userId: string, periodType: ReportPeriodType, customFrom?: string | null, customTo?: string | null) {
-  const report = await ReportService.getFinancialReport(
-    userId,
-    periodType,
-    customFrom,
-    customTo
-  );
-
+export function buildPdfDocumentDefinition(report: any) {
   const { summary, expenseCategories, cashflowTrend, budgetPerformance, savingGoals, debts, topExpenses } = report;
 
-  // Define PDF Document
-  const docDefinition: any = {
+  return {
     content: [
       { text: "Nancy Finance", style: "header" },
       { text: "Báo cáo tài chính", style: "subheader" },
@@ -59,7 +51,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['*', 'auto', 'auto', 'auto'],
           body: [
             [{ text: 'Tháng', style: 'tableHeader' }, { text: 'Thu nhập', style: 'tableHeader' }, { text: 'Chi tiêu', style: 'tableHeader' }, { text: 'Ròng', style: 'tableHeader' }],
-            ...cashflowTrend.map(c => [
+            ...cashflowTrend.map((c: any) => [
               c.month,
               formatVND(c.income),
               formatVND(c.expense),
@@ -78,7 +70,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['*', 'auto', 'auto'],
           body: [
             [{ text: 'Danh mục', style: 'tableHeader' }, { text: 'Số tiền', style: 'tableHeader' }, { text: 'Tỷ trọng', style: 'tableHeader' }],
-            ...expenseCategories.map(c => [
+            ...expenseCategories.map((c: any) => [
               c.name, 
               formatVND(c.amount), 
               `${c.percentage}%`
@@ -96,7 +88,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['*', 'auto', 'auto', 'auto'],
           body: [
             [{ text: 'Danh mục', style: 'tableHeader' }, { text: 'Ngân sách', style: 'tableHeader' }, { text: 'Đã chi', style: 'tableHeader' }, { text: '%', style: 'tableHeader' }],
-            ...budgetPerformance.map(b => [
+            ...budgetPerformance.map((b: any) => [
               b.categoryName,
               formatVND(b.allocatedAmount),
               formatVND(b.spentAmount),
@@ -115,7 +107,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['*', 'auto', 'auto', 'auto'],
           body: [
             [{ text: 'Mục tiêu', style: 'tableHeader' }, { text: 'Cần đạt', style: 'tableHeader' }, { text: 'Đã có', style: 'tableHeader' }, { text: '%', style: 'tableHeader' }],
-            ...savingGoals.map(s => [
+            ...savingGoals.map((s: any) => [
               s.name,
               formatVND(s.targetAmount),
               formatVND(s.currentAmount),
@@ -134,7 +126,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['*', 'auto', 'auto', 'auto'],
           body: [
             [{ text: 'Khoản nợ', style: 'tableHeader' }, { text: 'Loại', style: 'tableHeader' }, { text: 'Tổng/Hạn mức', style: 'tableHeader' }, { text: 'Còn nợ', style: 'tableHeader' }],
-            ...debts.map(d => [
+            ...debts.map((d: any) => [
               d.name,
               d.type === 'loan' ? 'Khoản vay' : 'Thẻ TD',
               formatVND(d.originalAmountOrLimit),
@@ -153,7 +145,7 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
           widths: ['auto', '*', 'auto', 'auto'],
           body: [
             [{ text: 'Ngày', style: 'tableHeader' }, { text: 'Nội dung', style: 'tableHeader' }, { text: 'Danh mục', style: 'tableHeader' }, { text: 'Số tiền', style: 'tableHeader' }],
-            ...topExpenses.map(t => [
+            ...topExpenses.map((t: any) => [
               formatDateVN(t.date),
               t.description,
               t.categoryName,
@@ -166,36 +158,25 @@ export async function generatePDF(userId: string, periodType: ReportPeriodType, 
       } : { text: "Không có giao dịch lớn", margin: [0, 5, 0, 20], color: 'gray' },
     ],
     styles: {
-      header: {
-        fontSize: 22,
-        bold: true,
-        margin: [0, 0, 0, 5]
-      },
-      subheader: {
-        fontSize: 16,
-        bold: true,
-        margin: [0, 0, 0, 5]
-      },
-      period: {
-        fontSize: 12,
-        color: 'gray',
-        margin: [0, 0, 0, 20]
-      },
-      sectionHeader: {
-        fontSize: 14,
-        bold: true,
-        margin: [0, 10, 0, 5]
-      },
-      tableHeader: {
-        bold: true,
-        fontSize: 12,
-        color: 'black'
-      }
+      header: { fontSize: 22, bold: true, margin: [0, 0, 0, 5] },
+      subheader: { fontSize: 16, bold: true, margin: [0, 0, 0, 5] },
+      period: { fontSize: 12, color: 'gray', margin: [0, 0, 0, 20] },
+      sectionHeader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
+      tableHeader: { bold: true, fontSize: 12, color: 'black' }
     },
-    defaultStyle: {
-      font: 'Roboto'
-    }
+    defaultStyle: { font: 'Roboto' }
   };
+}
+
+export async function generatePDF(userId: string, periodType: ReportPeriodType, customFrom?: string | null, customTo?: string | null) {
+  const report = await ReportService.getFinancialReport(
+    userId,
+    periodType,
+    customFrom,
+    customTo
+  );
+
+  const docDefinition = buildPdfDocumentDefinition(report);
 
   const pdfDocGenerator = (pdfMake as any).createPdf(docDefinition);
 

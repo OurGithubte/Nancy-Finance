@@ -447,7 +447,7 @@ export class ReportService {
     // 8. Budget Performance
     const relevantMonths = Array.from(new Set(Array.from(monthsMap.keys()))).map(k => {
       const [y, m] = k.split("-");
-      return { year: parseInt(y), month: parseInt(m) + 1 }; // DB uses 1-12
+      return { year: parseInt(y), month: parseInt(m) }; // DB uses 1-12
     });
 
     let budgetPerformance: BudgetPerformanceItem[] = [];
