@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const brandIcon = "/branding/nancy-finance-mark-v3.svg";
+
 export const metadata: Metadata = {
   title: "Nancy Finance - Quản lý tài chính cá nhân",
   description:
@@ -10,19 +12,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/icons/icon-192.png",
-        type: "image/png",
-        sizes: "192x192",
+        url: brandIcon,
+        type: "image/svg+xml",
+        sizes: "any",
       },
     ],
-    shortcut: "/icons/icon-192.png",
-    apple: [
-      {
-        url: "/icons/icon-192.png",
-        type: "image/png",
-        sizes: "192x192",
-      },
-    ],
+    shortcut: brandIcon,
   },
   appleWebApp: {
     capable: true,
@@ -32,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#16a34a",
+  themeColor: "#10b981",
   colorScheme: "dark",
 };
 
