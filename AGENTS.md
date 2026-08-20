@@ -48,3 +48,9 @@ pnpm typecheck
 pnpm build
 ```
 Nếu có lỗi, phải sửa triệt để trước khi báo cáo hoàn thành.
+
+---
+
+## 5. Môi trường & Hệ thống (MỚI)
+- **Git**: Lệnh `git` trên hệ thống này nằm tại đường dẫn tuyệt đối: `D:\Program Files\Git\cmd\git.exe` hoặc `D:\Program Files\Git\bin\git.exe`. Mọi tác vụ liên quan đến commit, push, lấy SHA, hay kiểm tra status phải sử dụng đường dẫn tuyệt đối này thay vì dùng alias `git` mặc định.
+- Tuyệt đối KHÔNG giả lập git/commit.

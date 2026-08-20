@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, bigint, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, bigint, integer, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 import { categories } from "./categories";
 import { financialAccounts } from "./accounts";
@@ -22,6 +22,7 @@ export const budgets = pgTable(
   },
   (table) => [
     index("budgets_user_month_year_idx").on(table.userId, table.year, table.month),
+    uniqueIndex("budgets_user_cat_month_year_unq").on(table.userId, table.categoryId, table.month, table.year),
   ]
 );
 
@@ -44,6 +45,28 @@ export const savingGoals = pgTable(
   },
   (table) => [
     index("saving_goals_user_idx").on(table.userId),
+  ]
+);
+
+export const savingGoalContributions = pgTable(
+  "saving_goal_contributions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    savingGoalId: text("saving_goal_id")
+      .notNull()
+      .references(() => savingGoals.id, { onDelete: "cascade" }),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    type: text("type").notNull().$type<"contribution" | "withdrawal">(),
+    transactionDate: timestamp("transaction_date").notNull().defaultNow(),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("saving_goal_contrib_user_idx").on(table.userId),
+    index("saving_goal_contrib_goal_idx").on(table.savingGoalId),
   ]
 );
 

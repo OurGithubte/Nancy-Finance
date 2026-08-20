@@ -7,9 +7,10 @@ import { formatVND } from "@/lib/format/money";
 export interface BudgetProgressProps {
   budget: BudgetItem;
   className?: string;
+  onClick?: () => void;
 }
 
-export function BudgetProgress({ budget, className }: BudgetProgressProps) {
+export function BudgetProgress({ budget, className, onClick }: BudgetProgressProps) {
   const isOver = budget.isOverBudget || budget.usedPercentage > 100;
   const isWarning = !isOver && budget.usedPercentage >= 85;
 
@@ -21,8 +22,10 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
 
   return (
     <div
+      onClick={onClick}
       className={cn(
         "rounded-xl border border-border bg-surface-card/40 p-3.5 transition-colors",
+        onClick && "cursor-pointer hover:bg-surface-card/80",
         className
       )}
     >
@@ -69,6 +72,12 @@ export function BudgetProgress({ budget, className }: BudgetProgressProps) {
         <span>Đã chi: {formatVND(budget.spentAmount)}</span>
         <span>Hạn mức: {formatVND(budget.allocatedAmount)}</span>
       </div>
+      {isOver && (
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-expense">
+          <AlertCircle className="h-3 w-3" />
+          <span>Vượt ngân sách: {formatVND(budget.spentAmount - budget.allocatedAmount)}</span>
+        </div>
+      )}
     </div>
   );
 }
