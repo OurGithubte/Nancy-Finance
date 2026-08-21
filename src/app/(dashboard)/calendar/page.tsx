@@ -3,15 +3,20 @@ import { FinancePageHeader } from "@/components/finance/finance-page-header";
 import { Calendar as CalendarIcon, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatVND } from "@/lib/format/money";
 import { formatDateVN } from "@/lib/format/date";
-import { getCalendarEventsAction } from "@/server/actions/calendar";
+import { requireUser } from "@/lib/auth/server";
+import { calendarService } from "@/server/services/calendar";
+import { createVNDate, getVNDateParts } from "@/server/services/reports";
 
 export default async function CalendarPage() {
-  const today = new Date();
-  const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-  const endDate = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  const user = await requireUser();
+  const { y, m } = getVNDateParts(new Date());
+  const startDate = createVNDate(y, m, 1);
+  const endMonth = m + 2;
+  const endDate = endMonth > 12
+    ? createVNDate(y + 1, endMonth - 12, 1)
+    : createVNDate(y, endMonth, 1);
 
-  const res = await getCalendarEventsAction(startDate.toISOString(), endDate.toISOString());
-  const events = res.success && res.data ? res.data : [];
+  const events = await calendarService.getEventsInRange(user.id, startDate, endDate);
 
   return (
     <div className="space-y-6">
@@ -43,9 +48,7 @@ export default async function CalendarPage() {
 
               <div className="text-right">
                 {ev.amount ? (
-                  <div className="text-xs font-bold text-foreground">
-                    {formatVND(ev.amount)}
-                  </div>
+                  <div className="text-xs font-bold text-foreground">{formatVND(ev.amount)}</div>
                 ) : (
                   <span className="text-xs text-muted">Sao kê định kỳ</span>
                 )}
@@ -54,8 +57,8 @@ export default async function CalendarPage() {
                     ev.status === "urgent"
                       ? "text-expense"
                       : ev.status === "scheduled" || ev.status === "completed"
-                      ? "text-income"
-                      : "text-warning"
+                        ? "text-income"
+                        : "text-warning"
                   }`}
                 >
                   {ev.status === "urgent" && <AlertTriangle className="h-3 w-3" />}
@@ -64,10 +67,10 @@ export default async function CalendarPage() {
                   {ev.status === "urgent"
                     ? "Sắp tới hạn"
                     : ev.status === "scheduled"
-                    ? "Định kỳ"
-                    : ev.status === "completed" 
-                    ? "Hoàn thành" 
-                    : "Trong tháng"}
+                      ? "Định kỳ"
+                      : ev.status === "completed"
+                        ? "Hoàn thành"
+                        : "Trong tháng"}
                 </span>
               </div>
             </div>

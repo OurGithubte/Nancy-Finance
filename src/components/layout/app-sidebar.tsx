@@ -19,18 +19,19 @@ import {
 } from "lucide-react";
 import { NancyLogo } from "@/components/branding/nancy-logo";
 import { cn } from "@/lib/utils";
-import { useSession, signOut } from "@/lib/auth/auth-client";
+import { signOut } from "@/lib/auth/auth-client";
+import type { DashboardUser } from "@/components/layout/dashboard-shell";
 
 export interface AppSidebarProps {
+  user: DashboardUser;
   onQuickExpense?: () => void;
   className?: string;
 }
 
-export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
+export function AppSidebar({ user, onQuickExpense, className }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session } = useSession();
-  const displayName = session?.user?.name || session?.user?.email || "Người dùng";
+  const displayName = user.name || user.email || "Người dùng";
 
   const handleSignOut = async () => {
     await signOut();
@@ -59,8 +60,7 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
       )}
     >
       <div>
-        {/* Brand Header */}
-        <Link href="/" className="flex items-center gap-3 px-2 py-3 mb-4">
+        <Link href="/" prefetch={false} className="flex items-center gap-3 px-2 py-3 mb-4">
           <NancyLogo
             className="h-11 w-11 shadow-md shadow-primary/20"
             sizes="44px"
@@ -74,7 +74,6 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
           </div>
         </Link>
 
-        {/* Navigation Menu Items */}
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -87,6 +86,7 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-all",
                   isActive
@@ -107,9 +107,7 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
         </nav>
       </div>
 
-      {/* Bottom Section: Quick Action Button & User Profile */}
       <div className="space-y-3 pt-3 border-t border-border">
-        {/* Prominent Quick Expense Button */}
         <button
           type="button"
           onClick={onQuickExpense}
@@ -119,7 +117,6 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
           <span>Ghi chi tiêu nhanh</span>
         </button>
 
-        {/* User Profile Card */}
         <div className="flex items-center justify-between rounded-xl bg-surface/60 p-2.5 border border-border">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-card text-xs font-bold text-primary border border-border">
@@ -130,7 +127,7 @@ export function AppSidebar({ onQuickExpense, className }: AppSidebarProps) {
                 {displayName}
               </span>
               <span className="text-[10px] text-muted font-medium block truncate max-w-[110px]">
-                {session?.user?.email || ""}
+                {user.email || ""}
               </span>
             </div>
           </div>

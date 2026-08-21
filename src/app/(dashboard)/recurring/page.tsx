@@ -1,31 +1,21 @@
-﻿import React from "react";
+import React from "react";
 import { FinancePageHeader } from "@/components/finance/finance-page-header";
-import { getRecurringTransactionsAction } from "@/server/actions/recurring";
+import { recurringService } from "@/server/services/recurring";
 import { categoriesService } from "@/server/services/categories";
 import { accountsRepository } from "@/server/repositories/accounts";
 import { RecurringList } from "@/components/finance/recurring-list";
 import { RecurringDialogs } from "@/components/finance/recurring-dialogs";
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/server";
 
 export default async function RecurringPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session?.user) {
-    redirect("/login");
-  }
+  const user = await requireUser();
+  const userId = user.id;
 
-  const userId = session.user.id;
-
-  const [recurringRes, categories, accounts] = await Promise.all([
-    getRecurringTransactionsAction(),
+  const [recurring, categories, accounts] = await Promise.all([
+    recurringService.getRecurringTransactions(userId),
     categoriesService.getCategories(userId),
-    accountsRepository.getAccountsByUserId(userId)
+    accountsRepository.getAccountsByUserId(userId),
   ]);
-
-  const recurring = recurringRes.success && recurringRes.data ? recurringRes.data : [];
 
   return (
     <div className="space-y-6">
@@ -35,11 +25,7 @@ export default async function RecurringPage() {
         actions={<RecurringDialogs accounts={accounts} categories={categories} />}
       />
 
-      <RecurringList 
-        items={recurring} 
-        accounts={accounts}
-        categories={categories}
-      />
+      <RecurringList items={recurring} accounts={accounts} categories={categories} />
     </div>
   );
 }

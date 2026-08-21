@@ -1,24 +1,19 @@
 import React from "react";
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/server";
 import { creditCardsRepository } from "@/server/repositories/credit-cards";
 import { accountsService } from "@/server/services/accounts";
 import { CreditCardsClient } from "./credit-cards-client";
 
 export default async function CreditCardsPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session?.user) {
-    redirect("/login");
-  }
+  const user = await requireUser();
 
-  const creditCards = await creditCardsRepository.getCreditCards(session.user.id);
-  const accounts = await accountsService.getAccounts(session.user.id);
-  const activeAccounts = accounts.filter(a => a.isActive);
+  const [creditCards, accounts] = await Promise.all([
+    creditCardsRepository.getCreditCards(user.id),
+    accountsService.getAccounts(user.id),
+  ]);
+  const activeAccounts = accounts.filter((a) => a.isActive);
 
-  const mappedCards = creditCards.map(c => {
+  const mappedCards = creditCards.map((c) => {
     const available = c.creditLimit - c.currentBalance;
     const usedPercentage = c.creditLimit > 0 ? Math.round((c.currentBalance / c.creditLimit) * 100) : 0;
     return {

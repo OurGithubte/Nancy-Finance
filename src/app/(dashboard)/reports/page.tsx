@@ -1,9 +1,9 @@
 import React from "react";
 import { FinancePageHeader } from "@/components/finance/finance-page-header";
 import {
-  ExpenseDonutChart,
-  CashflowTrendChart,
-} from "@/components/finance/finance-chart";
+  LazyExpenseDonutChart,
+  LazyCashflowTrendChart,
+} from "@/components/finance/lazy-finance-charts";
 import { FinanceKpiCard } from "@/components/finance/finance-kpi-card";
 import { ReportPeriodSelector } from "@/components/finance/report-period-selector";
 import { Download, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Landmark, CreditCard, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -11,9 +11,7 @@ import { ReportService, InvalidReportPeriodError } from "@/server/services/repor
 import { ReportPeriodType } from "@/types/reports";
 import { formatVND, formatPercent } from "@/lib/format/money";
 import { formatDateVN } from "@/lib/format/date";
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/server";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -24,14 +22,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    redirect("/login");
-  }
-
+  const user = await requireUser();
   const resolvedParams = await searchParams;
   const rawPeriod = resolvedParams.period as string | undefined;
   const periodType: ReportPeriodType = VALID_PERIOD_TYPES.includes(rawPeriod as ReportPeriodType)
@@ -43,12 +34,11 @@ export default async function ReportsPage({
   let report;
   let periodError: string | null = null;
   try {
-    report = await ReportService.getFinancialReport(session.user.id, periodType, customFrom, customTo);
+    report = await ReportService.getFinancialReport(user.id, periodType, customFrom, customTo);
   } catch (err) {
     if (err instanceof InvalidReportPeriodError) {
       periodError = err.message;
-      // Fall back to a safe default period so the rest of the page can still render.
-      report = await ReportService.getFinancialReport(session.user.id, "this_month");
+      report = await ReportService.getFinancialReport(user.id, "this_month");
     } else {
       throw err;
     }
@@ -56,7 +46,6 @@ export default async function ReportsPage({
 
   const { summary, comparison, expenseCategories, cashflowTrend, budgetPerformance, savingGoals, debts, topExpenses } = report;
 
-  // Build query string for export endpoints
   const params = new URLSearchParams();
   params.set("period", periodType);
   if (customFrom) params.set("from", customFrom);
@@ -73,6 +62,7 @@ export default async function ReportsPage({
             <Link
               href={`/api/reports/export/csv?${queryString}`}
               target="_blank"
+              prefetch={false}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-surface-card transition-colors cursor-pointer"
             >
               <Download className="h-4 w-4" />
@@ -81,6 +71,7 @@ export default async function ReportsPage({
             <Link
               href={`/api/reports/export/pdf?${queryString}`}
               target="_blank"
+              prefetch={false}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
             >
               <Download className="h-4 w-4" />
@@ -101,7 +92,6 @@ export default async function ReportsPage({
         </div>
       )}
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <FinanceKpiCard
           title="Tổng thu nhập"
@@ -118,7 +108,7 @@ export default async function ReportsPage({
           icon={<ArrowUpFromLine className="h-4 w-4 text-expense" />}
           iconBgColor="bg-expense/10"
           moneyType="expense"
-          isDebtCard={true} // High expense growth is bad
+          isDebtCard
         />
         <FinanceKpiCard
           title="Dòng tiền ròng"
@@ -142,7 +132,7 @@ export default async function ReportsPage({
             {summary.savingsRate !== null ? formatPercent(summary.savingsRate) : "N/A"}
           </div>
           <div className="mt-2 text-xs text-muted">
-            {comparison.savingsRateChange !== null 
+            {comparison.savingsRateChange !== null
               ? `${comparison.savingsRateChange > 0 ? "+" : ""}${comparison.savingsRateChange.toFixed(1)}% so với kỳ trước`
               : "Không đủ dữ liệu"}
           </div>
@@ -155,9 +145,7 @@ export default async function ReportsPage({
             </div>
             <span className="text-sm font-medium text-slate-300">Tổng tài sản (Số dư)</span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-income">
-            {formatVND(summary.totalAssets)}
-          </div>
+          <div className="mt-2 text-2xl font-bold text-income">{formatVND(summary.totalAssets)}</div>
           <div className="mt-2 text-xs text-muted">Tổng số dư tất cả tài khoản</div>
         </div>
 
@@ -168,46 +156,39 @@ export default async function ReportsPage({
             </div>
             <span className="text-sm font-medium text-slate-300">Tổng dư nợ</span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-expense">
-            {formatVND(summary.totalDebt)}
-          </div>
+          <div className="mt-2 text-2xl font-bold text-expense">{formatVND(summary.totalDebt)}</div>
           <div className="mt-2 text-xs text-muted">Tổng nợ khoản vay và thẻ tín dụng</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <ExpenseDonutChart
+          <LazyExpenseDonutChart
             title="Cơ cấu chi tiêu"
             totalExpense={summary.totalExpense}
-            categories={expenseCategories.map(c => ({
-              ...c,
-              percentage: Number(c.percentage)
-            }))}
+            categories={expenseCategories.map((c) => ({ ...c, percentage: Number(c.percentage) }))}
           />
         </div>
-
         <div className="lg:col-span-7">
-          <CashflowTrendChart
+          <LazyCashflowTrendChart
             title="Xu hướng dòng tiền"
-            data={cashflowTrend.map(c => ({
+            data={cashflowTrend.map((c) => ({
               month: c.month,
               monthLabel: c.month,
               income: c.income,
-              expense: c.expense
+              expense: c.expense,
             }))}
           />
         </div>
       </div>
 
-      {/* Budget Performance */}
       <div className="rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur">
         <h3 className="text-base font-semibold mb-4 text-foreground">Hiệu suất ngân sách</h3>
         {budgetPerformance.length === 0 ? (
           <p className="text-sm text-muted">Không có dữ liệu ngân sách trong kỳ này.</p>
         ) : (
           <div className="space-y-4">
-            {budgetPerformance.map(bp => (
+            {budgetPerformance.map((bp) => (
               <div key={bp.categoryId} className="flex flex-col gap-2 border-b border-border-card pb-3 last:border-0 last:pb-0">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-medium">{bp.categoryName}</span>
@@ -216,9 +197,9 @@ export default async function ReportsPage({
                   </span>
                 </div>
                 <div className="h-2 w-full bg-surface-card rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className={cn(
-                      "h-full rounded-full", 
+                      "h-full rounded-full",
                       bp.status === "over_budget" ? "bg-expense" : bp.status === "warning" ? "bg-amber-500" : "bg-income"
                     )}
                     style={{ width: `${Math.min(bp.usagePercentage, 100)}%` }}
@@ -230,24 +211,20 @@ export default async function ReportsPage({
         )}
       </div>
 
-      {/* Saving Goals */}
       <div className="rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur">
         <h3 className="text-base font-semibold mb-4 text-foreground">Mục tiêu tiết kiệm</h3>
         {savingGoals.length === 0 ? (
           <p className="text-sm text-muted">Chưa có mục tiêu tiết kiệm nào.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {savingGoals.map(sg => (
+            {savingGoals.map((sg) => (
               <div key={sg.id} className="rounded-xl border border-border-card bg-surface-card p-4">
                 <div className="flex justify-between mb-2">
                   <span className="font-medium text-sm">{sg.name}</span>
                   <span className="text-sm text-muted">{formatPercent(sg.progressPercentage)}</span>
                 </div>
                 <div className="h-2 w-full bg-surface rounded-full overflow-hidden mb-2">
-                  <div 
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${Math.min(sg.progressPercentage, 100)}%` }}
-                  />
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(sg.progressPercentage, 100)}%` }} />
                 </div>
                 <div className="text-xs text-slate-300 flex justify-between">
                   <span>{formatVND(sg.currentAmount)}</span>
@@ -259,7 +236,6 @@ export default async function ReportsPage({
         )}
       </div>
 
-      {/* Debt Summary */}
       <div className="rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur">
         <h3 className="text-base font-semibold mb-4 text-foreground">Tổng quan dư nợ</h3>
         {debts.length === 0 ? (
@@ -277,7 +253,7 @@ export default async function ReportsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-card">
-                {debts.map(d => (
+                {debts.map((d) => (
                   <tr key={d.id} className="hover:bg-surface-card/50">
                     <td className="px-4 py-3 font-medium text-slate-200">{d.name}</td>
                     <td className="px-4 py-3 text-muted">{d.type === "loan" ? "Khoản vay" : "Thẻ tín dụng"}</td>
@@ -302,7 +278,6 @@ export default async function ReportsPage({
         )}
       </div>
 
-      {/* Top Expenses */}
       <div className="rounded-2xl border border-border bg-surface/90 p-5 shadow-sm backdrop-blur">
         <h3 className="text-base font-semibold mb-4 text-foreground">Chi tiêu lớn nhất kỳ này</h3>
         {topExpenses.length === 0 ? (
@@ -319,7 +294,7 @@ export default async function ReportsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-card">
-                {topExpenses.map(tx => (
+                {topExpenses.map((tx) => (
                   <tr key={tx.id} className="hover:bg-surface-card/50">
                     <td className="px-4 py-3 text-muted">{formatDateVN(tx.date)}</td>
                     <td className="px-4 py-3 font-medium text-slate-200">{tx.description}</td>
