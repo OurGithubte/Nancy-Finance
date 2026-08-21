@@ -6,23 +6,40 @@ import {
   Smartphone,
   PiggyBank,
   TrendingUp,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AccountItem } from "@/types/finance";
 import { MoneyDisplay } from "./money-display";
 import { formatVND } from "@/lib/format/money";
 
-export interface AccountListCardProps {
-  accounts: AccountItem[];
-  totalBalance: number;
-  className?: string;
+export interface AccountListItem {
+  id: string;
+  name: string;
+  type: string;
+  balance: number;
+  accountNumber?: string | null;
+  icon?: string;
+  color?: string;
+  isDefault?: boolean;
+  isExcludedFromTotal?: boolean;
 }
 
-export function AccountListCard({
+export interface AccountListCardProps<T extends AccountListItem = AccountListItem> {
+  accounts: T[];
+  totalBalance: number;
+  className?: string;
+  onEdit?: (account: T) => void;
+  onDelete?: (account: T) => void;
+}
+
+export function AccountListCard<T extends AccountListItem>({
   accounts,
   totalBalance,
   className,
-}: AccountListCardProps) {
+  onEdit,
+  onDelete,
+}: AccountListCardProps<T>) {
   const getAccountIcon = (type: string, name: string) => {
     if (type === "cash") {
       return <Wallet className="h-4 w-4 text-primary" />;
@@ -38,6 +55,8 @@ export function AccountListCard({
     }
     return <Building2 className="h-4 w-4 text-credit" />;
   };
+
+  const showActions = Boolean(onEdit || onDelete);
 
   return (
     <div
@@ -67,19 +86,46 @@ export function AccountListCard({
           {accounts.map((acc) => (
             <div
               key={acc.id}
-              className="flex items-center justify-between rounded-xl bg-surface-card/60 p-2.5 hover:bg-surface-card transition-colors"
+              className="flex items-center justify-between gap-2 rounded-xl bg-surface-card/60 p-2.5 hover:bg-surface-card transition-colors"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface border border-border">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface border border-border">
                   {getAccountIcon(acc.type, acc.name)}
                 </div>
-                <span className="text-xs font-medium text-slate-200">
+                <span className="text-xs font-medium text-slate-200 truncate">
                   {acc.name}
                 </span>
               </div>
-              <span className="text-xs font-bold text-foreground">
-                {formatVND(acc.balance)}
-              </span>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-foreground whitespace-nowrap">
+                  {formatVND(acc.balance)}
+                </span>
+                {showActions && (
+                  <div className="flex items-center gap-1">
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(acc)}
+                        aria-label={`Sửa tài khoản ${acc.name}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(acc)}
+                        aria-label={`Xóa tài khoản ${acc.name}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
