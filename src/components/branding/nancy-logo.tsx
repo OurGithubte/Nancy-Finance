@@ -22,7 +22,7 @@ export function NancyLogo({
       )}
     >
       <Image
-        src="/branding/nancy-finance-master.svg"
+        src="/branding/nancy-finance-approved-v4.svg"
         alt={alt}
         fill
         sizes={sizes}
