@@ -26,9 +26,9 @@ export function MobileNav({
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-border bg-background/95 backdrop-blur-lg px-3 py-2">
       <div className="flex items-center justify-around">
-        {/* 1. Trang chủ / Tổng quan */}
         <Link
           href="/"
+          prefetch={false}
           className={cn(
             "flex flex-col items-center gap-1 text-[10px] font-medium transition-colors",
             pathname === "/" ? "text-primary" : "text-muted"
@@ -38,9 +38,9 @@ export function MobileNav({
           <span>Tổng quan</span>
         </Link>
 
-        {/* 2. Giao dịch / Thu chi */}
         <Link
           href="/transactions"
+          prefetch={false}
           className={cn(
             "flex flex-col items-center gap-1 text-[10px] font-medium transition-colors",
             pathname.startsWith("/transactions")
@@ -52,7 +52,6 @@ export function MobileNav({
           <span>Giao dịch</span>
         </Link>
 
-        {/* 3. Center Quick Action Button (+) */}
         <div className="-mt-5">
           <button
             type="button"
@@ -64,9 +63,9 @@ export function MobileNav({
           </button>
         </div>
 
-        {/* 4. Báo cáo */}
         <Link
           href="/reports"
+          prefetch={false}
           className={cn(
             "flex flex-col items-center gap-1 text-[10px] font-medium transition-colors",
             pathname.startsWith("/reports")
@@ -78,7 +77,6 @@ export function MobileNav({
           <span>Báo cáo</span>
         </Link>
 
-        {/* 5. Menu / Cài đặt & danh mục khác */}
         <button
           type="button"
           onClick={onOpenMobileMenu}
