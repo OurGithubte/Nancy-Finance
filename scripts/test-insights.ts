@@ -1,10 +1,124 @@
 import { db } from "../src/db";
-import { users, creditCards, creditCardStatements } from "../src/db/schema";
+import { users, creditCards, creditCardStatements, financialAccounts, categories, transactions } from "../src/db/schema";
+import { budgets } from "../src/db/schema/planning";
 import { insightsService } from "../src/server/services/insights";
+import { getVNDateParts, getReportPeriodDates } from "../src/server/services/reports";
 import * as assert from "assert";
 import { eq } from "drizzle-orm";
 
+/**
+ * Phase 6 Final Hardening Fix 3 regression tests. Uses its own dedicated, freshly
+ * created test user + isolated financial data (NOT the shared/arbitrary `userA` used
+ * by the credit-card tests below), cleaned up in `finally`, per DATABASE_RULES.md 6.5 —
+ * the shared user in this file is an arbitrary existing row and must never receive
+ * synthetic transactions/budgets.
+ */
+async function testVnTimezoneAndExclusiveBoundary() {
+  const [testUser] = await db
+    .insert(users)
+    .values({
+      id: crypto.randomUUID(),
+      name: "Phase6 Insights VN-Boundary Test User",
+      email: `phase6-insights-vnb-${Date.now()}@example.test`,
+    })
+    .returning();
+
+  try {
+    const now = new Date();
+
+    const [account] = await db
+      .insert(financialAccounts)
+      .values({ id: crypto.randomUUID(), userId: testUser.id, name: "Test Account", type: "bank", balance: 0 })
+      .returning();
+
+    const [category] = await db
+      .insert(categories)
+      .values({ id: crypto.randomUUID(), userId: testUser.id, name: "Test Category", type: "expense" })
+      .returning();
+
+    // 3A: budget month/year must be resolved via VN timezone (getVNDateParts), not
+    // server-local now.getMonth()/getFullYear() (Vercel runs UTC). We key the test
+    // budget by the SAME helper the fixed implementation now uses — if insights.ts
+    // ever regresses back to now.getMonth()+1, this budget would fall out of the
+    // month/year insights.ts actually queries and the warning below would disappear.
+    const { y: vnYear, m: vnMonth } = getVNDateParts(now);
+    const [budget] = await db
+      .insert(budgets)
+      .values({
+        id: crypto.randomUUID(),
+        userId: testUser.id,
+        categoryId: category.id,
+        allocatedAmount: 1_000_000,
+        spentAmount: 900_000, // 90% used -> "warning"
+        month: vnMonth,
+        year: vnYear,
+      })
+      .returning();
+
+    const budgetInsights = await insightsService.getSmartInsights(testUser.id);
+    const budgetWarning = budgetInsights.find((i) => i.id === `budget_warn_${budget.id}`);
+    assert.ok(budgetWarning, "Budget keyed to the current VN month/year must be picked up (getVNDateParts, not server-local time)");
+
+    // 3B: getReportPeriodDates() returns [startDate, endDate) — endDate EXCLUSIVE.
+    // A transaction dated EXACTLY at monthEnd belongs to NEXT month and must be
+    // excluded from this month's savings-rate calculation.
+    const { startDate: monthStart, endDate: monthEnd } = getReportPeriodDates("this_month");
+
+    await db.insert(transactions).values([
+      // In-month income/expense -> savings rate 5%, well under the 10% threshold.
+      {
+        id: crypto.randomUUID(),
+        userId: testUser.id,
+        accountId: account.id,
+        type: "income",
+        amount: 1_000_000,
+        transactionDate: new Date(monthStart.getTime() + 24 * 60 * 60 * 1000),
+        status: "completed",
+      },
+      {
+        id: crypto.randomUUID(),
+        userId: testUser.id,
+        accountId: account.id,
+        type: "expense",
+        amount: 950_000,
+        transactionDate: new Date(monthStart.getTime() + 24 * 60 * 60 * 1000),
+        status: "completed",
+      },
+      // Large income dated EXACTLY at the exclusive monthEnd boundary. If this were
+      // wrongly included (old `lte(monthEnd)` bug), savings rate would jump to ~91%
+      // and the low-savings-rate warning below would incorrectly disappear.
+      {
+        id: crypto.randomUUID(),
+        userId: testUser.id,
+        accountId: account.id,
+        type: "income",
+        amount: 10_000_000,
+        transactionDate: monthEnd,
+        status: "completed",
+      },
+    ]);
+
+    const savingsInsights = await insightsService.getSmartInsights(testUser.id);
+    const lowSavingsWarning = savingsInsights.find((i) => i.id === "savings_rate_low");
+    assert.ok(
+      lowSavingsWarning,
+      "Transaction dated exactly at the exclusive monthEnd boundary must NOT be counted into this month's savings rate (lt, not lte)"
+    );
+
+    console.log("✓ Budget insight resolved via VN timezone (getVNDateParts), not server-local time (Fix 3A)");
+    console.log("✓ Transaction at exclusive monthEnd boundary excluded from savings-rate calculation (Fix 3B)");
+  } finally {
+    await db.delete(budgets).where(eq(budgets.userId, testUser.id));
+    await db.delete(transactions).where(eq(transactions.userId, testUser.id));
+    await db.delete(categories).where(eq(categories.userId, testUser.id));
+    await db.delete(financialAccounts).where(eq(financialAccounts.userId, testUser.id));
+    await db.delete(users).where(eq(users.id, testUser.id));
+  }
+}
+
 async function run() {
+  await testVnTimezoneAndExclusiveBoundary();
+
   console.log("Setting up Credit Card Insights tests...");
 
   const [userA] = await db.select().from(users).limit(1);

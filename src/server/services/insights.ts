@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { budgets, creditCards, recurringTransactions, financialAccounts, financialEvents, loans, loanSchedules, creditCardStatements, transactions } from "@/db/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lt, lte, sql } from "drizzle-orm";
 import { projectRecurringOccurrences, RecurringTransactionType } from "@/lib/format/date";
 import { NetWorthService } from "./net-worth";
 import { ForecastService } from "./forecast";
-import { getReportPeriodDates } from "./reports";
+import { getReportPeriodDates, getVNDateParts } from "./reports";
 
 export type SmartInsight = {
   id: string;
@@ -22,8 +22,11 @@ export const insightsService = {
     const now = new Date();
     
     // 1. Budget warnings
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    // Dùng getVNDateParts() (Asia/Ho_Chi_Minh) thay vì now.getMonth()/getFullYear() theo
+    // server local time — Vercel chạy UTC, nên gần cuối/đầu tháng theo giờ VN,
+    // now.getMonth() có thể trả về tháng khác với tháng thực tế ở VN, khiến budget của
+    // đúng tháng hiện tại (VN) bị bỏ sót hoặc lấy nhầm ngân sách tháng kế bên.
+    const { y: currentYear, m: currentMonth } = getVNDateParts(now);
     const activeBudgets = await db
       .select()
       .from(budgets)
@@ -250,7 +253,10 @@ export const insightsService = {
           eq(transactions.userId, userId),
           eq(transactions.status, "completed"),
           gte(transactions.transactionDate, monthStart),
-          lte(transactions.transactionDate, monthEnd)
+          // getReportPeriodDates() trả về [startDate, endDate) — endDate là EXCLUSIVE
+          // (00:00 ngày 1 tháng sau). Dùng lte(monthEnd) sẽ tính nhầm giao dịch xảy ra
+          // đúng lúc monthEnd (00:00 ngày 1 tháng sau) vào tháng hiện tại. Phải dùng lt().
+          lt(transactions.transactionDate, monthEnd)
         )
       );
     let monthIncome = 0;

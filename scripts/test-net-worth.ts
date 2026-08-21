@@ -31,6 +31,17 @@ async function run() {
   try {
     const now = new Date();
 
+    // Phase 6 Final Hardening Fix 1: an account is only counted in a historical
+    // snapshot if it already existed at that boundary (createdAt < boundaryExclusive).
+    // This test simulates an account that existed well BEFORE the 2-months-ago income
+    // transaction below, so its `createdAt` must be explicitly backdated too — leaving
+    // it at the DB default (now) would make Fix 1 correctly exclude it from the
+    // 2-months-ago snapshot, which is not what this section is exercising. The opposite
+    // case — an account created AFTER a boundary must contribute 0 — is covered
+    // separately below by "Account B" (section 4) and by test-reports.ts (accFuture).
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
     const [account] = await db
       .insert(financialAccounts)
       .values({
@@ -39,6 +50,7 @@ async function run() {
         name: "Test Account",
         type: "bank",
         balance: 10_000_000, // current balance = 10,000,000 VND
+        createdAt: threeMonthsAgo,
       })
       .returning();
 
@@ -51,6 +63,7 @@ async function run() {
         type: "investment",
         balance: 999_000_000,
         isExcludedFromTotal: true,
+        createdAt: threeMonthsAgo,
       })
       .returning();
 
@@ -105,9 +118,41 @@ async function run() {
     const last = history.points[history.points.length - 1];
     assert.strictEqual(last.netWorth, nowSnapshot.netWorth, "Last history point should match current snapshot");
 
+    // 4. Phase 6 Final Hardening Fix 1: an account created AFTER a historical boundary
+    // must contribute 0 to that snapshot — it did not exist yet — even though its
+    // CURRENT balance is non-zero today. Captured BEFORE inserting account B so the
+    // boundary is strictly earlier than accountB.createdAt.
+    const boundaryBeforeAccountB = new Date(Date.now() - 1000);
+
+    await db
+      .insert(financialAccounts)
+      .values({
+        id: crypto.randomUUID(),
+        userId: testUser.id,
+        name: "Account B (created after boundary)",
+        type: "bank",
+        balance: 50_000_000,
+      })
+      .returning();
+
+    const snapshotBeforeAccountB = await NetWorthService.getSnapshotAt(testUser.id, boundaryBeforeAccountB);
+    assert.strictEqual(
+      snapshotBeforeAccountB.assets,
+      10_000_000,
+      "Account B must NOT appear in a snapshot taken before it existed (only account A's balance counts)"
+    );
+
+    const snapshotAfterAccountB = await NetWorthService.getSnapshotAt(testUser.id, new Date(Date.now() + 60_000));
+    assert.strictEqual(
+      snapshotAfterAccountB.assets,
+      10_000_000 + 50_000_000,
+      "Current snapshot must include account B once it exists and is not excluded"
+    );
+
     console.log("✓ Net Worth reconstruction correct (assets/debt/netWorth, VN-calendar boundaries)");
     console.log("✓ Excluded accounts respected");
     console.log("✓ Historical reversal of future transactions correct");
+    console.log("✓ Account created after a historical boundary contributes 0 to that snapshot (Fix 1)");
     console.log("PASS");
   } finally {
     // Cleanup: delete in FK-safe order.

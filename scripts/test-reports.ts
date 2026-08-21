@@ -144,6 +144,32 @@ async function runTests() {
     assert.strictEqual(report.summary.totalAssets, 1500, "totalAssets should respect isExcludedFromTotal");
     assert.strictEqual(report.summary.totalDebt, 45000, "totalDebt should be loan (40k) + CC (5k)");
 
+    // Phase 6 Final Hardening Fix 1: an account created AFTER a historical report's
+    // endDate must contribute 0 to that report's asset snapshot — it did not exist yet
+    // at that instant — even though it has a non-zero balance today.
+    const pastPeriod = getReportPeriodDates("custom", "2020-01-01", "2020-01-31");
+    const [accFuture] = await db
+      .insert(financialAccounts)
+      .values({ id: "accA_future", userId: userA.id, name: "Future Account", type: "bank", balance: 999_000 })
+      .returning();
+    assert.ok(accFuture.createdAt > pastPeriod.endDate, "Sanity: accFuture must be created after the 2020 report period");
+
+    const pastReport = await ReportService.getFinancialReport(userA.id, "custom", "2020-01-01", "2020-01-31");
+    assert.strictEqual(
+      pastReport.summary.totalAssets,
+      0,
+      "Account created after a historical report's endDate must not appear in that report's totalAssets"
+    );
+
+    // Sanity: the CURRENT (this_month) report must still include it, proving the fix
+    // only affects historical snapshots, not present-day totals.
+    const reportWithFutureAccount = await ReportService.getFinancialReport(userA.id, "this_month");
+    assert.strictEqual(
+      reportWithFutureAccount.summary.totalAssets,
+      1500 + 999_000,
+      "Current report must include the account once it exists"
+    );
+
     // User Isolation for metadata
     const crossTxCat = report.topExpenses.find(t => t.id === "txA_cross");
     assert.ok(crossTxCat, "Cross transaction exists in report");

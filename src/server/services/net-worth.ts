@@ -89,8 +89,21 @@ async function reconstructSnapshots(userId: string, boundaries: Boundary[]): Pro
     .from(financialAccounts)
     .where(eq(financialAccounts.userId, userId));
 
-  const currentAssets = accounts.reduce((sum, a) => (a.isExcluded ? sum : sum + a.balance), 0);
-  const isAccountIncluded = new Map(accounts.map((a) => [a.id, !a.isExcluded]));
+  const accountsById = new Map(accounts.map((a) => [a.id, a]));
+
+  // Whether an account counts toward assets AT A GIVEN BOUNDARY: it must not be
+  // excluded, AND it must already have existed at that instant (createdAt < boundary).
+  // An account created AFTER a boundary did not exist in that past snapshot, so both
+  // its balance contribution and any of its transactions must be fully ignored for
+  // that boundary — not partially reversed, which would leak a non-zero delta into a
+  // period before the account existed.
+  function isAccountIncludedAt(accountId: string, boundaryExclusive: Date): boolean {
+    const acc = accountsById.get(accountId);
+    if (!acc) return false;
+    if (acc.isExcluded) return false;
+    if (acc.createdAt >= boundaryExclusive) return false;
+    return true;
+  }
 
   const windowTxs = await db
     .select({
@@ -109,9 +122,9 @@ async function reconstructSnapshots(userId: string, boundaries: Boundary[]): Pro
       )
     );
 
-  function assetReverseDelta(tx: (typeof windowTxs)[number]): number {
-    const fromIncluded = isAccountIncluded.get(tx.accountId) ?? false;
-    const toIncluded = tx.toAccountId ? isAccountIncluded.get(tx.toAccountId) ?? false : false;
+  function assetReverseDelta(tx: (typeof windowTxs)[number], boundaryExclusive: Date): number {
+    const fromIncluded = isAccountIncludedAt(tx.accountId, boundaryExclusive);
+    const toIncluded = tx.toAccountId ? isAccountIncludedAt(tx.toAccountId, boundaryExclusive) : false;
     let delta = 0;
     if (tx.type === "income" && fromIncluded) delta -= tx.amount;
     if (tx.type === "expense" && fromIncluded) delta += tx.amount;
@@ -165,15 +178,23 @@ async function reconstructSnapshots(userId: string, boundaries: Boundary[]): Pro
       : [[] as { cardId: string; amount: number; date: Date }[], [] as { cardId: string; amount: number; date: Date }[]];
 
   for (const { key, boundaryExclusive } of boundaries) {
-    let assets = currentAssets;
+    // Base: sum of CURRENT balances of accounts that already existed at this boundary
+    // (createdAt < boundaryExclusive) and are not excluded. An account created after
+    // the boundary contributes 0 — it did not exist in this past snapshot.
+    let assets = 0;
+    for (const acc of accounts) {
+      if (acc.isExcluded) continue;
+      if (acc.createdAt >= boundaryExclusive) continue;
+      assets += acc.balance;
+    }
     for (const tx of windowTxs) {
       if (tx.transactionDate >= boundaryExclusive) {
-        // BUG (đã sửa): assetReverseDelta() trả về NGƯỢC DẤU so với tác động thật của giao
-        // dịch lên assets (income -> âm, expense -> dương, ...). Dòng cũ `assets -=
-        // assetReverseDelta(tx)` do đó CỘNG lại tác động thay vì lùi (trừ) nó đi, khiến số dư
-        // quá khứ bị tính sai (vd: thu nhập 4.000.000 sau mốc thời gian lẽ ra phải bị trừ ra
-        // khỏi số dư hiện tại để lùi về quá khứ, nhưng lại bị cộng thêm một lần nữa).
-        assets += assetReverseDelta(tx);
+        // assetReverseDelta() trả về đúng dấu ngược để lùi tác động của giao dịch xảy ra
+        // SAU boundary ra khỏi số dư hiện tại (income -> trừ, expense -> cộng lại, ...).
+        // isAccountIncludedAt() đảm bảo giao dịch của một account CHƯA tồn tại tại boundary
+        // (được tạo sau boundary) không được reverse — vì phần đóng góp của account đó vào
+        // `assets` ở trên đã là 0, reverse thêm sẽ làm rò rỉ số dư sai vào quá khứ.
+        assets += assetReverseDelta(tx, boundaryExclusive);
       }
     }
 

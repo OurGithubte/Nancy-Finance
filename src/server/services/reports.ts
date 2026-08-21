@@ -191,27 +191,44 @@ export class ReportService {
     const savingsRate = calculateSavingsRate(totalIncome, totalExpense);
 
     // 3. Current Assets Snapshot at endDate
-    const [assetsResult] = await db
-      .select({ total: sum(financialAccounts.balance) })
+    // Fetch full account rows (incl. createdAt) instead of a plain SQL sum, because an
+    // account created AFTER endDate must contribute 0 to this historical snapshot — it
+    // did not exist yet at that instant, even though it exists (with a balance) today.
+    const allAccountsForAssets = await db
+      .select({
+        id: financialAccounts.id,
+        balance: financialAccounts.balance,
+        isExcluded: financialAccounts.isExcludedFromTotal,
+        createdAt: financialAccounts.createdAt,
+      })
       .from(financialAccounts)
-      .where(
-        and(
-          eq(financialAccounts.userId, userId),
-          eq(financialAccounts.isExcludedFromTotal, false)
-        )
-      );
-    let totalAssets = Number(assetsResult?.total || 0);
+      .where(eq(financialAccounts.userId, userId));
+
+    const isAccountIncludedAt = (id: string | null): boolean => {
+      if (!id) return false;
+      const acc = allAccountsForAssets.find((a) => a.id === id);
+      if (!acc) return false;
+      if (acc.isExcluded) return false;
+      if (acc.createdAt >= endDate) return false; // did not exist yet at endDate
+      return true;
+    };
+
+    let totalAssets = allAccountsForAssets.reduce(
+      (sum, a) => (isAccountIncludedAt(a.id) ? sum + a.balance : sum),
+      0
+    );
 
     // Adjust assets back to endDate if endDate is in the past
     const now = new Date();
     if (endDate < now) {
-      // Only include transactions that involve accounts included in totalAssets
+      // Only include transactions that involve accounts included in totalAssets (i.e.
+      // accounts that existed AND were not excluded at endDate).
       const futureTxs = await db
-        .select({ 
-          type: transactions.type, 
-          amount: transactions.amount, 
+        .select({
+          type: transactions.type,
+          amount: transactions.amount,
           accountId: transactions.accountId,
-          toAccountId: transactions.toAccountId 
+          toAccountId: transactions.toAccountId
         })
         .from(transactions)
         .where(
@@ -221,23 +238,11 @@ export class ReportService {
             gte(transactions.transactionDate, endDate)
           )
         );
-        
-      // We need a map of which accounts are excluded to correctly reverse transactions
-      const accountsStatus = await db
-        .select({ id: financialAccounts.id, isExcluded: financialAccounts.isExcludedFromTotal })
-        .from(financialAccounts)
-        .where(eq(financialAccounts.userId, userId));
-        
-      const isAccountIncluded = (id: string | null) => {
-        if (!id) return false;
-        const acc = accountsStatus.find(a => a.id === id);
-        return acc ? !acc.isExcluded : false;
-      };
 
       for (const tx of futureTxs) {
-        const fromIncluded = isAccountIncluded(tx.accountId);
-        const toIncluded = isAccountIncluded(tx.toAccountId);
-        
+        const fromIncluded = isAccountIncludedAt(tx.accountId);
+        const toIncluded = isAccountIncludedAt(tx.toAccountId);
+
         if (tx.type === "income" && fromIncluded) {
           totalAssets -= tx.amount;
         }

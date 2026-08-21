@@ -67,11 +67,16 @@ export class ForecastService {
     let recurringIncome = 0;
     let recurringExpense = 0;
     for (const rt of recurring) {
-      // QUAN TRỌNG: dùng rt.nextDueDate (không phải `now`) làm mốc dưới của cửa sổ chiếu.
-      // Nếu nextDueDate đã tới hạn hoặc quá hạn (<= now, vì cron xử lý theo lịch riêng,
-      // không đồng bộ với thời điểm gọi forecast) mà vẫn lọc theo `now`, occurrence gần
-      // nhất — occurrence chắc chắn nhất — sẽ bị loại khỏi dự báo, khiến recurringIncome/
-      // recurringExpense bị tính thiếu hoặc bằng 0 một cách sai lệch.
+      // QUAN TRỌNG: forecast là dự báo TƯƠNG LAI, nên mốc dưới của cửa sổ chiếu PHẢI là
+      // `now` (asOf), không phải rt.nextDueDate. Nếu nextDueDate đã overdue (nằm trong
+      // quá khứ so với asOf — vì cron xử lý recurring theo lịch riêng, không đồng bộ với
+      // thời điểm gọi forecast), occurrence quá hạn đó KHÔNG được cộng vào
+      // projected future income/expense — nó thuộc một khái niệm khác ("overdue"), không
+      // phải "sắp tới". projectRecurringOccurrences() tự advance từ rt.nextDueDate tới
+      // occurrence >= startDate (ở đây là `now`) trước khi bắt đầu push kết quả, nên
+      // truyền `now` là đủ để đảm bảo chỉ occurrence >= now và <= horizonEnd được tính —
+      // không cần (và không được) mutate nextDueDate trong DB hay tạo transaction nào ở đây,
+      // ForecastService chỉ READ.
       const occurrences = projectRecurringOccurrences(
         {
           id: rt.id,
@@ -83,7 +88,7 @@ export class ForecastService {
           nextDueDate: rt.nextDueDate,
           note: rt.note,
         },
-        rt.nextDueDate,
+        now,
         horizonEnd
       );
       const total = occurrences.length * rt.amount;
