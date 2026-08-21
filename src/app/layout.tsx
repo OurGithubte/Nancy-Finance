@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const brandIcon = "/branding/nancy-finance-master.svg";
+const brandIcon = "/branding/nancy-finance-approved-v4.svg";
 
 export const metadata: Metadata = {
   title: "Nancy Finance - Quản lý tài chính cá nhân",
