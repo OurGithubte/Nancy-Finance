@@ -17,13 +17,13 @@ export default function manifest(): MetadataRoute.Manifest {
       // the raw Web App Manifest spec allows. Two entries for the same icon convey both
       // purposes correctly under that narrower type instead of failing typecheck.
       {
-        src: "/branding/nancy-finance-master.svg",
+        src: "/branding/nancy-finance-approved-v4.svg",
         sizes: "any",
         type: "image/svg+xml",
         purpose: "any",
       },
       {
-        src: "/branding/nancy-finance-master.svg",
+        src: "/branding/nancy-finance-approved-v4.svg",
         sizes: "any",
         type: "image/svg+xml",
         purpose: "maskable",
