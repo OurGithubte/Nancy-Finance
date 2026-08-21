@@ -9,8 +9,8 @@ import { signIn } from "@/lib/auth/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("nguyenvana@nancyfinance.vn");
-  const [password, setPassword] = useState("••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,8 +66,9 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full rounded-xl border border-border bg-surface-card pl-10 pr-3.5 py-2.5 text-xs text-foreground placeholder:text-muted outline-none focus:border-primary transition-all"
-                placeholder="name@example.com"
+                placeholder="Nhập email"
               />
             </div>
           </div>
@@ -91,8 +92,9 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full rounded-xl border border-border bg-surface-card pl-10 pr-3.5 py-2.5 text-xs text-foreground placeholder:text-muted outline-none focus:border-primary transition-all"
-                placeholder="••••••••"
+                placeholder="Nhập mật khẩu"
               />
             </div>
           </div>
