@@ -3,29 +3,21 @@ import { TransactionsClient } from "./transactions-client";
 import { transactionsRepository } from "@/server/repositories/transactions";
 import { accountsService } from "@/server/services/accounts";
 import { categoriesService } from "@/server/services/categories";
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/server";
 
 export default async function TransactionsPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session?.user) {
-    redirect("/login");
-  }
+  const user = await requireUser();
+  const userId = user.id;
 
-  const userId = session.user.id;
-  
   const [transactions, accounts, categories] = await Promise.all([
     transactionsRepository.getTransactions(userId, undefined, undefined, 100),
     accountsService.getAccounts(userId),
     categoriesService.getCategories(userId),
   ]);
 
-  const mappedTransactions = transactions.map(tx => ({
+  const mappedTransactions = transactions.map((tx) => ({
     id: tx.id,
-    title: tx.note || (tx.category ? tx.category.name : (tx.type === "transfer" ? "Chuyển khoản" : "Giao dịch")),
+    title: tx.note || (tx.category ? tx.category.name : tx.type === "transfer" ? "Chuyển khoản" : "Giao dịch"),
     type: tx.type,
     amount: tx.amount,
     categoryId: tx.categoryId || "",
@@ -35,14 +27,8 @@ export default async function TransactionsPage() {
     accountName: tx.account?.name || "",
     transactionDate: tx.transactionDate.toISOString(),
     note: tx.note || "",
-    status: tx.status
+    status: tx.status,
   }));
 
-  return (
-    <TransactionsClient 
-      transactions={mappedTransactions} 
-      accounts={accounts} 
-      categories={categories} 
-    />
-  );
+  return <TransactionsClient transactions={mappedTransactions} accounts={accounts} categories={categories} />;
 }
