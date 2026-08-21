@@ -3,10 +3,10 @@ import { Coins, TrendingUp, CreditCard, ArrowDownRight } from "lucide-react";
 import { FinancePageHeader } from "@/components/finance/finance-page-header";
 import { FinanceKpiCard } from "@/components/finance/finance-kpi-card";
 import {
-  ExpenseDonutChart,
-  CashflowTrendChart,
-  NetWorthTrendChart,
-} from "@/components/finance/finance-chart";
+  LazyExpenseDonutChart,
+  LazyCashflowTrendChart,
+  LazyNetWorthTrendChart,
+} from "@/components/finance/lazy-finance-charts";
 import { AccountListCard } from "@/components/finance/account-card";
 import { CreditCardListCard } from "@/components/finance/credit-card-card";
 import { LoanListCard } from "@/components/finance/loan-card";
@@ -43,8 +43,6 @@ export default async function DashboardOverviewPage({
     ({ startDate: periodStart, endDate: periodEnd } = getReportPeriodDates("this_month"));
   }
 
-  // Start expensive analytics exactly once and share the same promises with Smart Insights.
-  // Previously NetWorth + Forecast were calculated once for their cards and then again inside insights.
   const netWorthHistoryPromise = NetWorthService.getNetWorthHistory(userId, 6);
   const forecastSummaryPromise = ForecastService.getForecast(userId, 30);
   const smartInsightsPromise = insightsService.getSmartInsights(userId, {
@@ -178,7 +176,7 @@ export default async function DashboardOverviewPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <ExpenseDonutChart
+          <LazyExpenseDonutChart
             title="Dòng tiền tháng"
             totalExpense={summary.kpiSummary.totalExpense}
             categories={mappedCategories}
@@ -186,7 +184,7 @@ export default async function DashboardOverviewPage({
           />
         </div>
         <div className="lg:col-span-7">
-          <CashflowTrendChart title="Thu nhập vs Chi tiêu (6 tháng)" data={mappedCashflow} className="h-full" />
+          <LazyCashflowTrendChart title="Thu nhập vs Chi tiêu (6 tháng)" data={mappedCashflow} className="h-full" />
         </div>
       </div>
 
@@ -198,7 +196,7 @@ export default async function DashboardOverviewPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7">
-          <NetWorthTrendChart
+          <LazyNetWorthTrendChart
             data={netWorthHistory.points}
             hasSufficientHistory={netWorthHistory.hasSufficientHistory}
             className="h-full"
